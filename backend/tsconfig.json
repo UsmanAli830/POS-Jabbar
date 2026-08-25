@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "es2016",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "app.ts",
+    "index.ts",
+    "routes/**/*.ts",
+    "middleware/**/*.ts",
+    "scripts/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "find_locks.ts",
+    "fix_db.ts",
+    "multi_user.ts",
+    "prisma.config.ts",
+    "recreate_db.ts",
+    "test_backend.ts",
+    "test_db.ts",
+    "test_phase33.ts",
+    "sync-test.ts",
+    "sync_check.ts",
+    "backfill-stock.ts"
+  ]
+}

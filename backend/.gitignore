@@ -1,0 +1,26 @@
+node_modules
+dist
+build
+
+# Keep environment variables out of version control
+.env
+.env.*
+!.env.example
+
+# Local SQLite databases and database journals
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+prisma/*.db
+prisma/*.db-journal
+
+# Local backups directory
+backups/
+/backups
+
+# Logs
+*.log
+npm-debug.log*
+
+/generated/prisma
