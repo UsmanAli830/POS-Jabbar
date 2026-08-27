@@ -68,20 +68,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [token]);
 
   const login = async (username: string, password: string, loginGate?: 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' | 'CLIENT') => {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ username, password, loginGate, gate: loginGate })
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Login failed');
+    let res: Response;
+    try {
+      res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, password, loginGate, gate: loginGate })
+      });
+    } catch (networkErr: any) {
+      throw new Error('Unable to connect to POS server. Please ensure the backend is running.');
     }
 
-    const data = await res.json();
+    let data: any = {};
+    const text = await res.text();
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (parseErr) {
+      throw new Error('Server returned an unexpected response. Please try again.');
+    }
+
+    if (!res.ok) {
+      throw new Error(data.error || `Login failed (Status: ${res.status})`);
+    }
+
     const userPayload = data.user || data.employee;
     
     // Reset all storage to prevent state/tab bleed between portals
@@ -93,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('pos_token', data.token);
     localStorage.setItem('pos_user', JSON.stringify(userPayload));
   };
+
 
   const logout = () => {
     setToken(null);
