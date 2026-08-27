@@ -1,7 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 import productsRouter from './routes/products';
+
 import inventoryRouter from './routes/inventory';
 import salesRouter from './routes/sales';
 import financeRouter from './routes/finance';
@@ -157,4 +160,29 @@ app.get('/api/master-data', async (req, res) => {
   }
 });
 
+// --- SERVE FRONTEND PRODUCTION BUILD (SPA FALLBACK) ---
+const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+const altFrontendDistPath = path.join(__dirname, '../frontend/dist');
+
+// Check and serve static files
+app.use(express.static(frontendDistPath));
+app.use(express.static(altFrontendDistPath));
+
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || req.path.startsWith('/api')) {
+    return next();
+  }
+  const indexPath = fs.existsSync(path.join(frontendDistPath, 'index.html'))
+    ? path.join(frontendDistPath, 'index.html')
+    : path.join(altFrontendDistPath, 'index.html');
+    
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    next();
+  }
+});
+
 export default app;
+
+

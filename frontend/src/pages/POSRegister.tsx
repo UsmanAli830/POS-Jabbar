@@ -1667,48 +1667,40 @@ const POSRegister: React.FC = () => {
           </div>
 
           {/* ACTION BUTTONS */}
-          <div style={{ padding: '4px 6px', background: '#e2e8f0', borderTop: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <div style={{ padding: '6px 8px', background: '#f1f5f9', borderTop: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <button
               onClick={handleCompleteSale}
               disabled={isCheckingOut || cart.length === 0}
+              className="bg-[#0088cc] hover:bg-[#0077b5] text-white font-bold py-2 px-4 rounded-md shadow-sm transition-all duration-150 flex items-center justify-center gap-2 text-xs w-full"
               style={{
-                width: '100%', padding: '6px', fontSize: '11px', fontWeight: 800,
-                background: cart.length === 0 || isCheckingOut ? '#cbd5e1' : '#16a34a',
-                color: '#ffffff', border: 'none', borderRadius: '3px',
-                cursor: cart.length === 0 || isCheckingOut ? 'not-allowed' : 'pointer',
-                display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px',
-                boxShadow: cart.length === 0 ? 'none' : '0 2px 4px rgba(22, 163, 74, 0.3)'
+                background: cart.length === 0 || isCheckingOut ? '#cbd5e1' : '#0088cc',
+                cursor: cart.length === 0 || isCheckingOut ? 'not-allowed' : 'pointer'
               }}
             >
-              <CheckCircle size={13} /> {isCheckingOut ? 'Processing...' : 'COMPLETE SALE'}
+              <CheckCircle size={14} className="text-white" /> {isCheckingOut ? 'Processing...' : 'COMPLETE SALE (F10)'}
             </button>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
               <button
                 onClick={holdTicket}
                 disabled={cart.length === 0}
-                style={{
-                  padding: '3px', fontSize: '8px', fontWeight: 700, background: '#f59e0b', color: '#ffffff',
-                  border: 'none', borderRadius: '2px', cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
-                  display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2px'
-                }}
+                className="bg-[#1e293b] hover:bg-[#334155] text-slate-200 font-semibold py-1.5 px-2 rounded-md transition-all duration-150 flex items-center justify-center gap-1.5 text-[11px]"
+                style={{ cursor: cart.length === 0 ? 'not-allowed' : 'pointer' }}
               >
-                <Pause size={9} /> Hold Invoice
+                <Pause size={12} className="text-amber-400" /> Hold Invoice
               </button>
 
               <button
                 onClick={() => setCart([])}
                 disabled={cart.length === 0}
-                style={{
-                  padding: '3px', fontSize: '8px', fontWeight: 700, background: '#dc2626', color: '#ffffff',
-                  border: 'none', borderRadius: '2px', cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
-                  display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2px'
-                }}
+                className="bg-[#1e293b] hover:bg-[#334155] text-slate-200 font-semibold py-1.5 px-2 rounded-md transition-all duration-150 flex items-center justify-center gap-1.5 text-[11px]"
+                style={{ cursor: cart.length === 0 ? 'not-allowed' : 'pointer' }}
               >
-                <RotateCcw size={9} /> Clear Grid
+                <RotateCcw size={12} className="text-rose-400" /> Clear Grid
               </button>
             </div>
           </div>
+
 
           {/* ========================================================================= */}
           {/* PHASE 30: EXACT HISTORY PANEL RECREATION (PLACED IN RIGHT COLUMN AT BOTTOM) */}

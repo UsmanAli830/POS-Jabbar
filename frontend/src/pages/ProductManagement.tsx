@@ -3,11 +3,14 @@ import { AgGridReact } from 'ag-grid-react';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import BarcodeGenerator from '../components/BarcodeGenerator';
-import { List, Barcode as BarcodeIcon, Search, Maximize2, Minimize2, Package, Tag, Layers } from 'lucide-react';
+import { List, Barcode as BarcodeIcon, Search, Maximize2, Minimize2, Package, Tag, Layers, PackagePlus, Plus } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
+
+import { useAuth } from '../context/AuthContext';
 
 const ProductManagement: React.FC = () => {
   const { refreshInventory } = useInventory();
+  const { token } = useAuth();
   const [products, setProducts] = useState<any[]>([]);
   const [pCats, setPCats] = useState<any[]>([]);
   const [subCats, setSubCats] = useState<any[]>([]);
@@ -65,11 +68,13 @@ const ProductManagement: React.FC = () => {
     fetchMasterData();
     fetchFormulas();
     fetchProducts();
-  }, []);
+  }, [token]);
 
   const fetchFormulas = async () => {
     try {
-      const res = await fetch('http://localhost:3000/api/formulas');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch('http://localhost:3000/api/formulas', { headers });
       if (res.ok) setFormulas(await res.json());
     } catch (e) {
       console.error(e);
@@ -78,7 +83,9 @@ const ProductManagement: React.FC = () => {
 
   const fetchMasterData = async () => {
     try {
-      const res = await fetch('http://localhost:3000/api/master-data');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch('http://localhost:3000/api/master-data', { headers });
       if (res.ok) {
         const data = await res.json();
         setPCats(data.pCats || []);
@@ -95,7 +102,9 @@ const ProductManagement: React.FC = () => {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch(`http://localhost:3000/api/products?t=${Date.now()}`);
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`http://localhost:3000/api/products?t=${Date.now()}`, { headers });
       if (res.ok) {
         setProducts(await res.json());
       }
@@ -103,6 +112,7 @@ const ProductManagement: React.FC = () => {
       console.error('Failed to fetch products', e);
     }
   };
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -137,9 +147,12 @@ const ProductManagement: React.FC = () => {
       const url = editingId ? `http://localhost:3000/api/products/${editingId}` : 'http://localhost:3000/api/products';
       const method = editingId ? 'PUT' : 'POST';
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch(url, {
         method: method,
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload)
       });
       if (res.ok) {
@@ -154,6 +167,7 @@ const ProductManagement: React.FC = () => {
     } catch (e) {
       alert('Network error while saving');
     }
+
   };
 
   const resetForm = () => {
@@ -284,12 +298,12 @@ const ProductManagement: React.FC = () => {
     <div style={{ display: 'flex', gap: '8px', height: '100%', position: 'relative' }}>
       
       {/* Left Pane: Data Entry */}
-      <div className="glass-panel" style={{ width: expandedPane === 'FORM' ? '100%' : '300px', display: expandedPane === 'GRID' ? 'none' : 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
-        <div style={{ background: '#cbd5e1', padding: '6px 10px', fontWeight: 600, borderBottom: '1px solid #94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
-            <Package size={14} /> Product Master
+      <div className="glass-panel" style={{ width: expandedPane === 'FORM' ? '100%' : '320px', display: expandedPane === 'GRID' ? 'none' : 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+        <div className="bg-[#0f172a] text-white font-bold px-4 py-2.5 rounded-t-lg flex justify-between items-center text-sm">
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Package size={16} className="text-[#38bdf8]" /> Product Master
           </span>
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             {(formMode === 'DISABLED' || formMode === 'VIEW') && (
               <button 
                 onClick={() => {
@@ -303,16 +317,15 @@ const ProductManagement: React.FC = () => {
                   setSelectedProductData(null);
                   setFormMode('CREATE');
                 }} 
-                style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}
+                className="bg-[#0088cc] hover:bg-[#0077b5] text-white font-semibold px-3 py-1 rounded-md shadow-sm transition-all duration-150 flex items-center gap-1 text-xs"
               >
-                Create
+                <Plus size={12} className="text-purple-300" /> + Add New
               </button>
             )}
 
             {formMode === 'VIEW' && (
               <button 
-                className="btn-primary" 
-                style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 'bold', cursor: 'pointer' }} 
+                className="bg-[#0088cc] hover:bg-[#0077b5] text-white font-semibold px-3 py-1 rounded-md shadow-sm transition-all duration-150 flex items-center gap-1 text-xs"
                 onClick={() => setFormMode('EDIT')}
               >
                 Edit
@@ -321,8 +334,7 @@ const ProductManagement: React.FC = () => {
 
             {(formMode === 'CREATE' || formMode === 'EDIT') && (
               <button 
-                className="btn-primary" 
-                style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 'bold', cursor: 'pointer' }} 
+                className="bg-[#0088cc] hover:bg-[#0077b5] text-white font-semibold px-3 py-1 rounded-md shadow-sm transition-all duration-150 flex items-center gap-1 text-xs"
                 onClick={handleSave}
               >
                 {formMode === 'EDIT' ? 'Update Record' : 'Save New'}
@@ -335,14 +347,14 @@ const ProductManagement: React.FC = () => {
                   resetForm();
                   setFormMode('DISABLED');
                 }} 
-                style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#fee2e2', color: '#dc2626', cursor: 'pointer' }}
+                className="bg-[#1e293b] hover:bg-[#334155] text-slate-200 font-semibold px-3 py-1 rounded-md transition-all duration-150 flex items-center gap-1 text-xs"
               >
-                Clear
+                Cancel
               </button>
             )}
 
-            <button onClick={toggleFormExpand} style={{ background: 'transparent', border: 'none', padding: '2px', cursor: 'pointer', marginLeft: '2px' }}>
-              {expandedPane === 'FORM' ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+            <button onClick={toggleFormExpand} style={{ background: 'transparent', border: 'none', padding: '2px', cursor: 'pointer', marginLeft: '2px', color: '#cbd5e1' }}>
+              {expandedPane === 'FORM' ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
             </button>
           </div>
         </div>
@@ -350,69 +362,114 @@ const ProductManagement: React.FC = () => {
         {/* Form Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid #cbd5e1', background: '#f8fafc' }}>
           <button 
-            style={{ flex: 1, padding: '6px', background: activeFormTab === 'BASIC' ? '#fff' : 'transparent', border: 'none', borderBottom: activeFormTab === 'BASIC' ? '2px solid #0284c7' : '2px solid transparent', fontWeight: activeFormTab === 'BASIC' ? 'bold' : 'normal', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '11px' }}
+            style={{ 
+              flex: 1, 
+              padding: '8px', 
+              background: activeFormTab === 'BASIC' ? '#0088cc' : 'transparent', 
+              color: activeFormTab === 'BASIC' ? '#ffffff' : '#334155',
+              border: 'none', 
+              fontWeight: activeFormTab === 'BASIC' ? 'bold' : 'normal', 
+              cursor: 'pointer', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '6px', 
+              fontSize: '12px' 
+            }}
             onClick={() => setActiveFormTab('BASIC')}
-          ><Tag size={12}/> Basic Info</button>
+          >
+            <Tag size={13} className={activeFormTab === 'BASIC' ? 'text-yellow-300' : ''} /> Basic Info
+          </button>
           <button 
-            style={{ flex: 1, padding: '6px', background: activeFormTab === 'PRICING' ? '#fff' : 'transparent', border: 'none', borderBottom: activeFormTab === 'PRICING' ? '2px solid #0284c7' : '2px solid transparent', fontWeight: activeFormTab === 'PRICING' ? 'bold' : 'normal', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '11px' }}
+            style={{ 
+              flex: 1, 
+              padding: '8px', 
+              background: activeFormTab === 'PRICING' ? '#0088cc' : 'transparent', 
+              color: activeFormTab === 'PRICING' ? '#ffffff' : '#334155',
+              border: 'none', 
+              fontWeight: activeFormTab === 'PRICING' ? 'bold' : 'normal', 
+              cursor: 'pointer', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '6px', 
+              fontSize: '12px' 
+            }}
             onClick={() => setActiveFormTab('PRICING')}
-          >Pricing</button>
+          >
+            Pricing
+          </button>
           <button 
-            style={{ flex: 1, padding: '6px', background: activeFormTab === 'STOCK' ? '#fff' : 'transparent', border: 'none', borderBottom: activeFormTab === 'STOCK' ? '2px solid #0284c7' : '2px solid transparent', fontWeight: activeFormTab === 'STOCK' ? 'bold' : 'normal', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '11px' }}
+            style={{ 
+              flex: 1, 
+              padding: '8px', 
+              background: activeFormTab === 'STOCK' ? '#0088cc' : 'transparent', 
+              color: activeFormTab === 'STOCK' ? '#ffffff' : '#334155',
+              border: 'none', 
+              fontWeight: activeFormTab === 'STOCK' ? 'bold' : 'normal', 
+              cursor: 'pointer', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '6px', 
+              fontSize: '12px' 
+            }}
             onClick={() => setActiveFormTab('STOCK')}
-          ><Layers size={12}/> Stock</button>
+          >
+            <Layers size={13} /> Stock
+          </button>
         </div>
 
-        <div style={{ padding: '8px', overflowY: 'auto', flex: 1, background: '#fff' }}>
+        <div style={{ padding: '12px', overflowY: 'auto', flex: 1, background: '#fff' }}>
           
           {activeFormTab === 'BASIC' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div className="form-group">
-                <label className="desktop-label">Product Name *</label>
-                <input name="productName" value={formData.productName} onChange={handleChange} className="desktop-input" autoFocus disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+                <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Product Name *</label>
+                <input name="productName" value={formData.productName} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" autoFocus disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
               </div>
-              <div style={{ display: 'flex', gap: '16px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="desktop-label">Product Code</label>
-                  <input name="productCode" value={formData.productCode} onChange={handleChange} className="desktop-input" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Product Code</label>
+                  <input name="productCode" value={formData.productCode} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
                 </div>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="desktop-label">Barcode</label>
-                  <input name="barCode" value={formData.barCode} onChange={handleChange} className="desktop-input" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Barcode</label>
+                  <input name="barCode" value={formData.barCode} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
                 </div>
               </div>
               <div className="form-group">
-                <label className="desktop-label">Category (PCat)</label>
-                <select name="pCatId" value={formData.pCatId} onChange={handleChange} className="desktop-input" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
+                <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Category (PCat)</label>
+                <select name="pCatId" value={formData.pCatId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
                   <option value="">-- Select --</option>
                   {pCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div className="form-group">
-                <label className="desktop-label">Sub Category</label>
-                <select name="subCatId" value={formData.subCatId} onChange={handleChange} className="desktop-input" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
+                <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Sub Category</label>
+                <select name="subCatId" value={formData.subCatId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
                   <option value="">-- Select --</option>
                   {subCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div className="form-group">
-                <label className="desktop-label">Brand (Company)</label>
-                <select name="companyId" value={formData.companyId} onChange={handleChange} className="desktop-input" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
+                <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Brand (Company)</label>
+                <select name="companyId" value={formData.companyId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
                   <option value="">-- Select --</option>
                   {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <div style={{ display: 'flex', gap: '16px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="desktop-label">Product Type</label>
-                  <select name="pTypeId" value={formData.pTypeId} onChange={handleChange} className="desktop-input" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Product Type</label>
+                  <select name="pTypeId" value={formData.pTypeId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
                     <option value="">-- Select --</option>
                     {pTypes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="desktop-label">Weight Unit</label>
-                  <select name="weightUnitId" value={formData.weightUnitId} onChange={handleChange} className="desktop-input" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Weight Unit</label>
+                  <select name="weightUnitId" value={formData.weightUnitId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
                     <option value="">-- Select --</option>
                     {weightUnits.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -422,41 +479,41 @@ const ProductManagement: React.FC = () => {
           )}
 
           {activeFormTab === 'PRICING' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div className="form-group">
-                <label className="desktop-label">Cost Price (Rs.)</label>
-                <input name="costPrice" type="number" step="0.01" value={formData.costPrice} onChange={handleChange} className="desktop-input" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+                <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Cost Price (Rs.)</label>
+                <input name="costPrice" type="number" step="0.01" value={formData.costPrice} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
               </div>
               <div className="form-group">
-                <label className="desktop-label">Retail Price (Rs.)</label>
-                <input name="retailPrice" type="number" step="0.01" value={formData.retailPrice} onChange={handleChange} className="desktop-input" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+                <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Retail Price (Rs.)</label>
+                <input name="retailPrice" type="number" step="0.01" value={formData.retailPrice} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
               </div>
               <div className="form-group">
-                <label className="desktop-label">Wholesale Price (Rs.)</label>
-                <input name="wholeSalePrice" type="number" step="0.01" value={formData.wholeSalePrice} onChange={handleChange} className="desktop-input" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+                <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Wholesale Price (Rs.)</label>
+                <input name="wholeSalePrice" type="number" step="0.01" value={formData.wholeSalePrice} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
               </div>
               <div className="form-group">
-                <label className="desktop-label">Trade Price (Rs.)</label>
-                <input name="tradePrice" type="number" step="0.01" value={formData.tradePrice} onChange={handleChange} className="desktop-input" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+                <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Trade Price (Rs.)</label>
+                <input name="tradePrice" type="number" step="0.01" value={formData.tradePrice} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
               </div>
             </div>
           )}
 
           {activeFormTab === 'STOCK' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div className="form-group">
-                <label className="desktop-label">Current Stock</label>
-                <input name="currentStock" type="number" value={formData.currentStock} onChange={handleChange} className="desktop-input" disabled={formMode !== 'CREATE'} />
-                {formMode !== 'CREATE' && <div style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px' }}>Cannot manually edit existing stock here</div>}
+                <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Initial Current Stock</label>
+                <input name="currentStock" type="number" value={formData.currentStock} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode !== 'CREATE'} />
+                {formMode !== 'CREATE' && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>To adjust stock for existing products, use Inventory Control</div>}
               </div>
-              <div style={{ display: 'flex', gap: '16px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="desktop-label">Min Level</label>
-                  <input name="minLevel" type="number" value={formData.minLevel} onChange={handleChange} className="desktop-input" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Min Level</label>
+                  <input name="minLevel" type="number" value={formData.minLevel} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
                 </div>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="desktop-label">Danger Level</label>
-                  <input name="dangerLevel" type="number" value={formData.dangerLevel} onChange={handleChange} className="desktop-input" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Danger Level</label>
+                  <input name="dangerLevel" type="number" value={formData.dangerLevel} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
                 </div>
               </div>
             </div>
@@ -465,52 +522,55 @@ const ProductManagement: React.FC = () => {
       </div>
 
       {/* Right Pane: Grid & Barcode */}
-      <div className="glass-panel" style={{ flex: expandedPane === 'FORM' ? 0 : 1, display: expandedPane === 'FORM' ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden', padding: '0' }}>
-        <div style={{ display: 'flex', background: '#cbd5e1', borderBottom: '1px solid #94a3b8', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex' }}>
+      <div className="glass-panel" style={{ flex: expandedPane === 'FORM' ? 0 : 1, display: expandedPane === 'FORM' ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden', padding: '0', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+        <div className="bg-[#0f172a] text-white font-bold px-4 py-2.5 rounded-t-lg flex justify-between items-center text-sm">
+          <div style={{ display: 'flex', gap: '8px' }}>
             <button 
-              className="btn" 
-              style={{ background: activeRightTab === 'LIST' ? '#fff' : 'transparent', border: 'none', borderRight: '1px solid #94a3b8', padding: '6px 12px', fontWeight: activeRightTab === 'LIST' ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
+              className={activeRightTab === 'LIST' ? "bg-[#0088cc] text-white px-3 py-1 rounded-md flex items-center gap-1.5 font-semibold text-xs" : "bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-md flex items-center gap-1.5 font-medium text-xs"}
               onClick={() => setActiveRightTab('LIST')}
             >
-              <List size={12} /> Product List
+              <List size={13} /> Product List
             </button>
             <button 
-              className="btn" 
-              style={{ background: activeRightTab === 'BARCODE' ? '#fff' : 'transparent', border: 'none', borderRight: '1px solid #94a3b8', padding: '6px 12px', fontWeight: activeRightTab === 'BARCODE' ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
+              className={activeRightTab === 'BARCODE' ? "bg-[#0088cc] text-white px-3 py-1 rounded-md flex items-center gap-1.5 font-semibold text-xs" : "bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-md flex items-center gap-1.5 font-medium text-xs"}
               onClick={() => setActiveRightTab('BARCODE')}
             >
-              <BarcodeIcon size={12} /> Barcode Image
+              <BarcodeIcon size={13} /> Barcode Studio
             </button>
           </div>
-          <button onClick={toggleGridExpand} style={{ background: 'transparent', border: 'none', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-            {expandedPane === 'GRID' ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="bg-slate-800 text-slate-300 text-xs px-2.5 py-0.5 rounded-md font-mono">
+              Products ({filteredProducts.length})
+            </span>
+            <button onClick={toggleGridExpand} style={{ background: 'transparent', border: 'none', padding: '2px', cursor: 'pointer', color: '#cbd5e1' }}>
+              {expandedPane === 'GRID' ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            </button>
+          </div>
         </div>
 
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
           {activeRightTab === 'LIST' && (
             <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ padding: '8px 12px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ position: 'relative', width: '200px' }}>
-                    <Search size={12} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  <div style={{ position: 'relative', width: '240px' }}>
+                    <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                     <input 
                       type="text" 
                       placeholder="Search products by code, name..." 
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      style={{ width: '100%', padding: '4px 8px 4px 24px', borderRadius: '3px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '11px' }}
+                      className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 pl-8 pr-3 py-1.5 rounded-md text-xs outline-none w-full shadow-sm"
                     />
                   </div>
                   {selectedRowIds.length > 0 && (
-                    <button onClick={handleDeleteSelected} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '3px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}>
+                    <button onClick={handleDeleteSelected} className="bg-red-600 hover:bg-red-700 text-white font-semibold px-3 py-1 rounded-md text-xs transition-all">
                       Delete Selected ({selectedRowIds.length})
                     </button>
                   )}
                 </div>
-                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#0f172a', background: '#e2e8f0', padding: '3px 8px', borderRadius: '3px', display: 'flex', gap: '10px' }}>
-                  <span>Total Stock: {filteredProducts.reduce((sum, p) => sum + (Number(p.currentStock) || 0), 0).toLocaleString()} pcs</span>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#0f172a', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '4px 10px', borderRadius: '6px', display: 'flex', gap: '10px' }}>
+                  <span>Total Stock: <strong style={{ color: '#0088cc' }}>{filteredProducts.reduce((sum, p) => sum + (Number(p.currentStock) || 0), 0).toLocaleString()}</strong> units</span>
                 </div>
               </div>
               <div className="ag-theme-alpine" style={{ flex: 1, width: '100%' }}>
@@ -526,7 +586,7 @@ const ProductManagement: React.FC = () => {
                   getRowId={(params) => String(params.data.id)}
                 />
               </div>
-          </div>
+            </div>
           )}
 
           {activeRightTab === 'BARCODE' && (
@@ -548,3 +608,4 @@ const ProductManagement: React.FC = () => {
 };
 
 export default ProductManagement;
+

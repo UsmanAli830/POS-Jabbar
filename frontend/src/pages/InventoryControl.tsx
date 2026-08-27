@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Settings, Plus, Minus, Save, RefreshCw, Search } from 'lucide-react';
+import { Settings, Plus, Minus, Save, RefreshCw, Search, PackageCheck } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
+import { useAuth } from '../context/AuthContext';
 
 type Location = { id: number; name: string };
-type StockItem = { id: number; productCode: string; productName: string; salePrice: number; stock: number };
+type StockItem = { id: number; productCode: string; productName: string; salePrice: number; costPrice?: number; stock: number; categoryName?: string };
 
 const InventoryControl: React.FC = () => {
-  const { refreshInventory } = useInventory();
+  const { products: contextProducts, refreshInventory } = useInventory();
+  const { token } = useAuth();
   const [locations, setLocations] = useState<Location[]>([]);
-  const [selectedLocationId, setSelectedLocationId] = useState<number | ''>('');
+  const [selectedLocationId, setSelectedLocationId] = useState<number | 'ALL'>('ALL');
   const [stockList, setStockList] = useState<StockItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
   
   const [selectedProduct, setSelectedProduct] = useState<StockItem | null>(null);
   const [adjustmentQty, setAdjustmentQty] = useState<number>(0);
@@ -20,7 +23,7 @@ const InventoryControl: React.FC = () => {
 
   useEffect(() => {
     if (selectedProduct) {
-      setProductSearchText(`[${selectedProduct.productCode}] - ${selectedProduct.productName}`);
+      setProductSearchText(`[${selectedProduct.productCode || 'NO-CODE'}] - ${selectedProduct.productName}`);
     } else {
       setProductSearchText('');
     }
@@ -30,65 +33,90 @@ const InventoryControl: React.FC = () => {
     if (!searchQuery) return stockList;
     const q = searchQuery.toLowerCase();
     return stockList.filter(item => 
-      item.productName.toLowerCase().includes(q) || 
-      item.productCode.toLowerCase().includes(q)
+      (item.productName && item.productName.toLowerCase().includes(q)) || 
+      (item.productCode && item.productCode.toLowerCase().includes(q))
     );
   }, [stockList, searchQuery]);
 
-  useEffect(() => {
-    fetchLocations();
-  }, []);
-
-  useEffect(() => {
-    if (selectedLocationId) {
-      fetchStock(selectedLocationId);
-    } else {
-      setStockList([]);
-    }
-    setSelectedProduct(null);
-  }, [selectedLocationId]);
-
-  const fetchLocations = async () => {
+  const fetchStock = async (locationId: number | 'ALL' = selectedLocationId) => {
+    setLoading(true);
     try {
-      const res = await fetch('http://localhost:3000/api/master-data');
-      if (res.ok) {
-        const data = await res.json();
-        setLocations(data.locations || []);
-        if (data.locations && data.locations.length > 0) {
-          setSelectedLocationId(data.locations[0].id);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch locations', err);
-    }
-  };
-
-  const fetchStock = async (locationId: number) => {
-    try {
-      const res = await fetch(`http://localhost:3000/api/inventory/stock/${locationId}`);
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      
+      const url = locationId === 'ALL' || !locationId
+        ? `http://localhost:3000/api/inventory?t=${Date.now()}`
+        : `http://localhost:3000/api/inventory/stock/${locationId}?t=${Date.now()}`;
+        
+      const res = await fetch(url, { headers });
       if (res.ok) {
         const data = await res.json();
         setStockList(data);
       }
     } catch (err) {
       console.error('Failed to fetch stock list', err);
+    } finally {
+      setLoading(false);
     }
   };
 
+  const fetchLocations = async () => {
+    try {
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch('http://localhost:3000/api/master-data', { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setLocations(data.locations || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch locations', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchLocations();
+    fetchStock('ALL');
+  }, [token]);
+
+  useEffect(() => {
+    fetchStock(selectedLocationId);
+    setSelectedProduct(null);
+  }, [selectedLocationId]);
+
+  // Sync when global inventory updates
+  useEffect(() => {
+    if (contextProducts && contextProducts.length > 0 && selectedLocationId === 'ALL') {
+      const mapped = contextProducts.map(p => ({
+        id: p.id,
+        productCode: p.productCode || '',
+        productName: p.productName,
+        salePrice: p.retailPrice ?? p.salePrice ?? 0,
+        costPrice: p.costPrice ?? 0,
+        stock: p.currentStock ?? 0,
+        categoryName: p.pCat?.name || 'General'
+      }));
+      setStockList(mapped);
+    }
+  }, [contextProducts]);
+
   const handleAdjustmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProduct || !selectedLocationId || adjustmentQty === 0) {
+    if (!selectedProduct || adjustmentQty === 0) {
       alert('Please select a product and enter a non-zero quantity.');
       return;
     }
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch('http://localhost:3000/api/inventory/adjust', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           productId: selectedProduct.id,
-          locationId: selectedLocationId,
+          locationId: selectedLocationId === 'ALL' ? (locations[0]?.id || 1) : selectedLocationId,
           quantity: adjustmentQty,
           referenceNotes,
           targetLedger
@@ -99,8 +127,8 @@ const InventoryControl: React.FC = () => {
         alert('Stock adjusted successfully!');
         setAdjustmentQty(0);
         setReferenceNotes('');
-        fetchStock(selectedLocationId as number);
-        refreshInventory();
+        await fetchStock(selectedLocationId);
+        await refreshInventory();
       } else {
         const err = await res.json();
         alert('Error adjusting stock: ' + (err.error || 'Unknown error'));
@@ -113,26 +141,46 @@ const InventoryControl: React.FC = () => {
 
   return (
     <div className="page-wrapper" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div className="page-header" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-heading-banner">
         <div>
-          <h1 className="page-title">Inventory Control</h1>
-          <p className="page-subtitle">Track multi-location stock movements and make real-time adjustments.</p>
+          <h1 className="page-heading-title">
+            <PackageCheck size={22} className="text-blue-600" /> Inventory Control
+          </h1>
+          <p className="page-heading-desc">Real-time stock monitoring, multi-location visibility, and instant inventory adjustments.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <label style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Active Warehouse:</label>
+          <label style={{ color: '#475569', fontWeight: 600, fontSize: '13px' }}>Location / Warehouse:</label>
           <select 
             className="form-select" 
-            style={{ width: '250px', background: 'rgba(15,23,42,0.8)' }}
+            style={{ width: '220px', padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
             value={selectedLocationId}
-            onChange={(e) => setSelectedLocationId(Number(e.target.value))}
+            onChange={(e) => setSelectedLocationId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
           >
-            {locations.length === 0 && <option value="">Loading locations...</option>}
+            <option value="ALL">🏢 All Store / Main Stock</option>
             {locations.map(loc => (
-              <option key={loc.id} value={loc.id}>{loc.name}</option>
+              <option key={loc.id} value={loc.id}>📍 {loc.name}</option>
             ))}
           </select>
+          <button 
+            onClick={() => fetchStock(selectedLocationId)} 
+            disabled={loading}
+            style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              padding: '6px 14px', 
+              borderRadius: '6px', 
+              border: '1px solid #cbd5e1', 
+              background: '#fff', 
+              fontSize: '13px', 
+              cursor: 'pointer' 
+            }}
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
+          </button>
         </div>
       </div>
+
       
       <div style={{ display: 'flex', gap: '24px', flex: 1, overflow: 'hidden' }}>
         

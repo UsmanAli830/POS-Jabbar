@@ -328,12 +328,17 @@ const AdminPermissions: React.FC = () => {
           </div>
 
           {/* List Header */}
-          <div style={{ padding: '8px 12px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
-            Employees ({filteredEmployees.length})
+          <div className="bg-[#0f172a] text-white font-bold px-4 py-2.5 rounded-t-lg flex justify-between items-center text-sm">
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Users size={14} className="text-[#38bdf8]" /> Staff Roster
+            </span>
+            <span className="bg-slate-800 text-slate-300 text-xs px-2 py-0.5 rounded-md font-mono">
+              {filteredEmployees.length}
+            </span>
           </div>
 
           {/* Scrollable List */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
             {filteredEmployees.map(emp => {
               const isSelected = emp.id === selectedEmployeeId;
               const isEmpAdmin = emp.isAdmin || emp.username === 'admin';
@@ -343,22 +348,24 @@ const AdminPermissions: React.FC = () => {
                   onClick={() => selectEmployee(emp)}
                   style={{
                     padding: '10px 12px',
-                    borderRadius: '6px',
-                    marginBottom: '4px',
+                    borderRadius: '8px',
+                    marginBottom: '6px',
                     cursor: 'pointer',
-                    background: isSelected ? '#eff6ff' : 'transparent',
-                    border: isSelected ? '1px solid #bfdbfe' : '1px solid transparent',
+                    background: isSelected ? '#0088cc' : '#f8fafc',
+                    color: isSelected ? '#ffffff' : '#1e293b',
+                    border: isSelected ? '1px solid #0088cc' : '1px solid #e2e8f0',
                     transition: 'all 0.15s ease'
                   }}
                 >
+
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div style={{ 
                         width: '28px', 
                         height: '28px', 
                         borderRadius: '50%', 
-                        background: isSelected ? '#3b82f6' : '#e2e8f0', 
-                        color: isSelected ? '#ffffff' : '#475569',
+                        background: isSelected ? '#ffffff' : '#1e293b', 
+                        color: isSelected ? '#0088cc' : '#f1f5f9',
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'center',
@@ -368,10 +375,10 @@ const AdminPermissions: React.FC = () => {
                         {emp.name ? emp.name.charAt(0).toUpperCase() : 'U'}
                       </div>
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: isSelected ? '#1e3a8a' : '#1e293b' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: isSelected ? '#ffffff' : '#0f172a' }}>
                           {emp.name}
                         </div>
-                        <div style={{ fontSize: '11px', color: '#64748b' }}>
+                        <div style={{ fontSize: '11px', color: isSelected ? '#e0f2fe' : '#64748b' }}>
                           @{emp.username || 'no-login'} • {emp.postRec?.title || 'Staff'}
                         </div>
                       </div>
@@ -381,8 +388,8 @@ const AdminPermissions: React.FC = () => {
                       <span style={{ 
                         fontSize: '10px', 
                         fontWeight: 700, 
-                        color: '#7c3aed', 
-                        background: '#ede9fe', 
+                        color: isSelected ? '#ffffff' : '#7c3aed', 
+                        background: isSelected ? 'rgba(0,0,0,0.25)' : '#ede9fe', 
                         padding: '2px 6px', 
                         borderRadius: '4px' 
                       }}>
@@ -392,8 +399,8 @@ const AdminPermissions: React.FC = () => {
                       <span style={{ 
                         fontSize: '10px', 
                         fontWeight: 600, 
-                        color: '#0284c7', 
-                        background: '#e0f2fe', 
+                        color: isSelected ? '#ffffff' : '#0284c7', 
+                        background: isSelected ? 'rgba(0,0,0,0.2)' : '#e0f2fe', 
                         padding: '2px 6px', 
                         borderRadius: '4px' 
                       }}>
@@ -639,25 +646,16 @@ const AdminPermissions: React.FC = () => {
                 <button 
                   onClick={handleSavePermissions}
                   disabled={saving}
+                  className="bg-[#0088cc] hover:bg-[#0077b5] text-white font-bold py-2 px-6 rounded-md shadow-sm transition-all duration-150 flex items-center gap-2 text-sm"
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '9px 24px',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    color: '#ffffff',
-                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: saving ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 2px 4px rgba(37,99,235,0.2)'
+                    cursor: saving ? 'not-allowed' : 'pointer'
                   }}
                 >
                   <Save size={16} />
                   {saving ? 'Saving...' : 'Save Permissions'}
                 </button>
               </div>
+
             </>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: '13px' }}>
