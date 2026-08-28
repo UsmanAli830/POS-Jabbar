@@ -80,7 +80,8 @@ const Lockout: React.FC<LockoutProps> = ({ expiresAt, onUnlocked }) => {
     <div style={{
       minHeight: '100vh',
       width: '100vw',
-      background: 'radial-gradient(ellipse at top, #1e1b4b 0%, #0f172a 45%, #020617 100%)',
+      backgroundColor: '#000000',
+      backgroundImage: 'radial-gradient(circle at 50% 0%, #171717 0%, #000000 75%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',

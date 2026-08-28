@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import Lockout from './Lockout';
 import { 
-  ShieldCheck, Building2, Lock, User, ArrowRight, ArrowLeft, 
-  Key, Eye, EyeOff, Loader2, Server, Store, CheckCircle2, AlertCircle, Sparkles,
-  Users, ShoppingBag
+  ShieldCheck, ArrowRight, ArrowLeft, 
+  Lock, User, Eye, EyeOff, Loader2, AlertCircle, Sparkles,
+  Users, Store
 } from 'lucide-react';
 
 type GatePortal = 'SELECTION' | 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE';
@@ -19,6 +20,9 @@ const LoginGate: React.FC = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // License lockout state — shown when a locked company tries to login
+  const [lockoutData, setLockoutData] = useState<{ expiresAt?: string } | null>(null);
+
   const resetForm = () => {
     setUsername('');
     setPassword('');
@@ -30,7 +34,7 @@ const LoginGate: React.FC = () => {
     resetForm();
     setActiveGate(gate);
     if (gate === 'SUPER_ADMIN') {
-      setUsername('admin');
+      setUsername('superadmin');
     }
   };
 
@@ -47,18 +51,38 @@ const LoginGate: React.FC = () => {
     try {
       await login(username.trim(), password.trim(), gateType);
     } catch (err: any) {
+      // Detect LICENSE_EXPIRED specifically — show Lockout screen instead of generic error
+      if (err.code === 'LICENSE_EXPIRED') {
+        setLockoutData({ expiresAt: err.expiresAt || undefined });
+        setIsLoading(false);
+        return;
+      }
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // If a locked company tried to login, show the Lockout screen
+  if (lockoutData !== null) {
+    return (
+      <Lockout
+        expiresAt={lockoutData.expiresAt}
+        onUnlocked={() => {
+          setLockoutData(null);
+          resetForm();
+          setActiveGate('SELECTION');
+        }}
+      />
+    );
+  }
+
   return (
     <div style={{
       minHeight: '100vh',
       width: '100vw',
-      backgroundColor: '#020617',
-      backgroundImage: 'radial-gradient(ellipse at top, #0f172a 0%, #020617 70%)',
+      backgroundColor: '#000000',
+      backgroundImage: 'radial-gradient(circle at 50% 0%, #171717 0%, #000000 75%)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -68,204 +92,208 @@ const LoginGate: React.FC = () => {
       boxSizing: 'border-box',
       position: 'relative',
       overflow: 'hidden',
-      color: '#f8fafc'
+      color: '#ffffff'
     }}>
       
-      {/* Background Decorative Glows */}
+      {/* Background Subtle Monochrome Glows */}
       <div style={{
         position: 'absolute',
-        width: '500px',
-        height: '500px',
-        background: 'radial-gradient(circle, rgba(168, 85, 247, 0.08) 0%, transparent 70%)',
-        top: '-15%',
-        left: '25%',
-        filter: 'blur(80px)',
-        pointerEvents: 'none'
-      }} />
-      <div style={{
-        position: 'absolute',
-        width: '500px',
-        height: '500px',
-        background: 'radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, transparent 70%)',
-        bottom: '-15%',
-        right: '25%',
-        filter: 'blur(80px)',
+        width: '600px',
+        height: '600px',
+        background: 'radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, transparent 70%)',
+        top: '-20%',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        filter: 'blur(100px)',
         pointerEvents: 'none'
       }} />
 
-      {/* TOP-RIGHT SUPER ADMIN / DEVELOPER ACCESS BUTTON */}
+      {/* TOP-RIGHT SUPER ADMIN ACCESS CARD / BUTTON */}
       {activeGate === 'SELECTION' && (
         <button
           onClick={() => handleSelectGate('SUPER_ADMIN')}
           style={{
             position: 'absolute',
-            top: '20px',
-            right: '24px',
+            top: '24px',
+            right: '28px',
             fontSize: '12px',
-            fontWeight: 600,
-            padding: '6px 14px',
-            background: 'rgba(15, 23, 42, 0.8)',
-            border: '1px solid #334155',
-            borderRadius: '8px',
-            color: '#94a3b8',
+            fontWeight: 800,
+            padding: '10px 18px',
+            background: '#09090b',
+            border: '1px solid #27272a',
+            borderRadius: '12px',
+            color: '#ffffff',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
+            gap: '8px',
             zIndex: 20,
-            transition: 'all 0.2s ease',
-            backdropFilter: 'blur(10px)'
+            transition: 'all 0.25s ease',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+            letterSpacing: '0.3px'
           }}
           onMouseEnter={e => {
-            e.currentTarget.style.color = '#f1f5f9';
-            e.currentTarget.style.borderColor = '#64748b';
-            e.currentTarget.style.background = 'rgba(30, 41, 59, 0.9)';
+            e.currentTarget.style.background = '#18181b';
+            e.currentTarget.style.borderColor = '#ffffff';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 6px 24px rgba(255,255,255,0.1)';
           }}
           onMouseLeave={e => {
-            e.currentTarget.style.color = '#94a3b8';
-            e.currentTarget.style.borderColor = '#334155';
-            e.currentTarget.style.background = 'rgba(15, 23, 42, 0.8)';
+            e.currentTarget.style.background = '#09090b';
+            e.currentTarget.style.borderColor = '#27272a';
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.6)';
           }}
         >
-          <ShieldCheck size={14} color="#38bdf8" /> Developer Access
+          <div style={{
+            width: '22px',
+            height: '22px',
+            borderRadius: '6px',
+            background: '#ffffff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#000000'
+          }}>
+            <ShieldCheck size={14} />
+          </div>
+          <span>Super Admin</span>
         </button>
       )}
 
       {/* Main Container */}
       <div style={{
         width: '100%',
-        maxWidth: activeGate === 'SELECTION' ? '860px' : '440px',
+        maxWidth: activeGate === 'SELECTION' ? '760px' : '440px',
         position: 'relative',
         zIndex: 10,
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
       }}>
 
         {/* ========================================================================= */}
-        {/* STAGE 1: GATE SELECTION SCREEN (2 CLEAN CARDS)                            */}
+        {/* STAGE 1: GATE SELECTION SCREEN (2 BLACK & WHITE CARDS)                     */}
         {/* ========================================================================= */}
         {activeGate === 'SELECTION' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             
             {/* Top Brand Header */}
-            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '44px' }}>
               <div style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
-                background: 'rgba(30, 41, 59, 0.7)',
-                border: '1px solid #1e293b',
-                padding: '6px 16px',
+                background: '#09090b',
+                border: '1px solid #27272a',
+                padding: '6px 18px',
                 borderRadius: '30px',
-                color: '#38bdf8',
-                fontSize: '12px',
-                fontWeight: 700,
-                letterSpacing: '0.5px',
-                marginBottom: '16px',
-                backdropFilter: 'blur(10px)'
+                color: '#e4e4e7',
+                fontSize: '11px',
+                fontWeight: 800,
+                letterSpacing: '1px',
+                marginBottom: '20px',
+                textTransform: 'uppercase'
               }}>
-                <Sparkles size={14} />
-                AIi SANITARY STORE — ENTERPRISE SYSTEM
+                <Sparkles size={13} color="#ffffff" />
+                Ali Sanitary Store — Enterprise System
               </div>
 
               <h1 style={{
-                fontSize: '32px',
+                fontSize: '36px',
                 fontWeight: 900,
                 color: '#ffffff',
-                margin: '0 0 10px 0',
-                letterSpacing: '-0.5px'
+                margin: '0 0 12px 0',
+                letterSpacing: '-1px'
               }}>
-                Select Your Authentication Gate
+                Select Authentication Gate
               </h1>
 
               <p style={{
                 fontSize: '14px',
-                color: '#94a3b8',
+                color: '#a1a1aa',
                 maxWidth: '480px',
                 margin: '0 auto',
-                lineHeight: 1.5
+                lineHeight: 1.6
               }}>
                 Choose your authorized portal to sign in to the store management system.
               </p>
             </div>
 
-            {/* 2 Clean Portal Cards Grid */}
+            {/* 2 Portal Cards Grid */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-              gap: '32px',
-              width: '100%',
-              maxWidth: '780px'
+              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+              gap: '28px',
+              width: '100%'
             }}>
               
               {/* CARD 1: COMPANY ADMIN */}
               <div
                 onClick={() => handleSelectGate('ADMIN')}
                 style={{
-                  background: 'rgba(15, 23, 42, 0.85)',
-                  backdropFilter: 'blur(20px)',
-                  border: '1px solid #1e293b',
-                  borderRadius: '20px',
-                  padding: '36px 30px',
+                  background: '#09090b',
+                  border: '1px solid #27272a',
+                  borderRadius: '24px',
+                  padding: '40px 32px',
                   cursor: 'pointer',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4)',
-                  transition: 'all 0.25s ease',
+                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.8)',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   position: 'relative'
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.5)';
-                  e.currentTarget.style.boxShadow = '0 25px 30px -5px rgba(168, 85, 247, 0.15)';
+                  e.currentTarget.style.transform = 'translateY(-6px)';
+                  e.currentTarget.style.borderColor = '#ffffff';
+                  e.currentTarget.style.boxShadow = '0 30px 60px rgba(255, 255, 255, 0.08)';
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.borderColor = '#1e293b';
-                  e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.4)';
+                  e.currentTarget.style.borderColor = '#27272a';
+                  e.currentTarget.style.boxShadow = '0 20px 40px rgba(0, 0, 0, 0.8)';
                 }}
               >
                 <div>
                   <div style={{
-                    width: '54px',
-                    height: '54px',
-                    borderRadius: '14px',
-                    background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.2), rgba(126, 34, 206, 0.3))',
-                    border: '1px solid rgba(168, 85, 247, 0.3)',
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '16px',
+                    background: '#18181b',
+                    border: '1px solid #3f3f46',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    marginBottom: '22px',
-                    color: '#c084fc'
+                    marginBottom: '26px',
+                    color: '#ffffff'
                   }}>
-                    <Store size={28} />
+                    <Store size={30} />
                   </div>
 
-                  <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', margin: '0 0 8px 0' }}>
+                  <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#ffffff', margin: '0 0 8px 0', letterSpacing: '-0.3px' }}>
                     Company Admin
                   </h2>
                   
-                  <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 28px 0', lineHeight: 1.5 }}>
-                    Full business management & controls
+                  <p style={{ fontSize: '13px', color: '#a1a1aa', margin: '0 0 32px 0', lineHeight: 1.6 }}>
+                    Full business management, store analytics, inventory controls &amp; financial ledgers.
                   </p>
                 </div>
 
                 <button style={{
                   width: '100%',
-                  padding: '13px',
-                  background: 'linear-gradient(135deg, #9333ea, #7e22ce)',
-                  color: '#ffffff',
+                  padding: '14px',
+                  background: '#ffffff',
+                  color: '#000000',
                   border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '13px',
-                  fontWeight: 800,
+                  borderRadius: '14px',
+                  fontSize: '14px',
+                  fontWeight: 900,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 14px rgba(147, 51, 234, 0.35)',
-                  transition: 'opacity 0.2s'
+                  transition: 'all 0.2s ease',
+                  letterSpacing: '-0.2px'
                 }}>
                   Enter Portal <ArrowRight size={16} />
                 </button>
@@ -275,71 +303,70 @@ const LoginGate: React.FC = () => {
               <div
                 onClick={() => handleSelectGate('EMPLOYEE')}
                 style={{
-                  background: 'rgba(15, 23, 42, 0.85)',
-                  backdropFilter: 'blur(20px)',
-                  border: '1px solid #1e293b',
-                  borderRadius: '20px',
-                  padding: '36px 30px',
+                  background: '#09090b',
+                  border: '1px solid #27272a',
+                  borderRadius: '24px',
+                  padding: '40px 32px',
                   cursor: 'pointer',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4)',
-                  transition: 'all 0.25s ease',
+                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.8)',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   position: 'relative'
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.5)';
-                  e.currentTarget.style.boxShadow = '0 25px 30px -5px rgba(16, 185, 129, 0.15)';
+                  e.currentTarget.style.transform = 'translateY(-6px)';
+                  e.currentTarget.style.borderColor = '#ffffff';
+                  e.currentTarget.style.boxShadow = '0 30px 60px rgba(255, 255, 255, 0.08)';
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.borderColor = '#1e293b';
-                  e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.4)';
+                  e.currentTarget.style.borderColor = '#27272a';
+                  e.currentTarget.style.boxShadow = '0 20px 40px rgba(0, 0, 0, 0.8)';
                 }}
               >
                 <div>
                   <div style={{
-                    width: '54px',
-                    height: '54px',
-                    borderRadius: '14px',
-                    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.3))',
-                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '16px',
+                    background: '#18181b',
+                    border: '1px solid #3f3f46',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    marginBottom: '22px',
-                    color: '#34d399'
+                    marginBottom: '26px',
+                    color: '#ffffff'
                   }}>
-                    <Users size={28} />
+                    <Users size={30} />
                   </div>
 
-                  <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', margin: '0 0 8px 0' }}>
+                  <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#ffffff', margin: '0 0 8px 0', letterSpacing: '-0.3px' }}>
                     Employee Portal
                   </h2>
                   
-                  <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 28px 0', lineHeight: 1.5 }}>
-                    POS, billing, and daily sales operations
+                  <p style={{ fontSize: '13px', color: '#a1a1aa', margin: '0 0 32px 0', lineHeight: 1.6 }}>
+                    POS cash register, billing counter, order booking, and daily sales operations.
                   </p>
                 </div>
 
                 <button style={{
                   width: '100%',
-                  padding: '13px',
-                  background: 'linear-gradient(135deg, #059669, #047857)',
-                  color: '#ffffff',
+                  padding: '14px',
+                  background: '#ffffff',
+                  color: '#000000',
                   border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '13px',
-                  fontWeight: 800,
+                  borderRadius: '14px',
+                  fontSize: '14px',
+                  fontWeight: 900,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
-                  transition: 'opacity 0.2s'
+                  transition: 'all 0.2s ease',
+                  letterSpacing: '-0.2px'
                 }}>
                   Enter Portal <ArrowRight size={16} />
                 </button>
@@ -350,13 +377,14 @@ const LoginGate: React.FC = () => {
             {/* Bottom Footer Note */}
             <div style={{
               textAlign: 'center',
-              marginTop: '40px',
-              color: '#64748b',
+              marginTop: '44px',
+              color: '#52525b',
               fontSize: '12px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '6px'
+              gap: '6px',
+              fontWeight: 600
             }}>
               <Lock size={13} />
               <span>Secure Role-Based Access Control • End-to-End Enterprise Encryption</span>
@@ -369,83 +397,83 @@ const LoginGate: React.FC = () => {
         {/* ========================================================================= */}
         {activeGate === 'SUPER_ADMIN' && (
           <div style={{
-            background: 'rgba(30, 41, 59, 0.85)',
-            backdropFilter: 'blur(25px)',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
+            background: '#09090b',
+            border: '1px solid #27272a',
             borderRadius: '24px',
-            padding: '36px 32px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 50px rgba(56, 189, 248, 0.15)',
+            padding: '40px 36px',
+            boxShadow: '0 30px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(255, 255, 255, 0.05)',
             position: 'relative'
           }}>
             <button
               onClick={() => setActiveGate('SELECTION')}
               style={{
                 position: 'absolute',
-                top: '20px',
-                left: '20px',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: 'none',
-                color: '#94a3b8',
+                top: '22px',
+                left: '22px',
+                background: '#18181b',
+                border: '1px solid #27272a',
+                color: '#a1a1aa',
                 borderRadius: '8px',
-                padding: '6px 10px',
+                padding: '6px 12px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                fontSize: '11px',
+                fontSize: '12px',
                 fontWeight: 700
               }}
             >
               <ArrowLeft size={14} /> Back
             </button>
 
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '28px' }}>
               <div style={{
-                width: '50px',
-                height: '50px',
-                borderRadius: '14px',
-                background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                width: '56px',
+                height: '56px',
+                borderRadius: '16px',
+                background: '#ffffff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto 12px',
-                boxShadow: '0 6px 16px rgba(2, 132, 199, 0.3)'
+                margin: '0 auto 16px',
+                color: '#000000',
+                boxShadow: '0 8px 20px rgba(255, 255, 255, 0.15)'
               }}>
-                <ShieldCheck size={26} color="#ffffff" />
+                <ShieldCheck size={28} />
               </div>
-              <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', margin: '0 0 4px 0' }}>
+              <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>
                 Super Admin Sign In
               </h2>
-              <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
-                Software Supplier Licensing & Master Provisioning
+              <p style={{ fontSize: '13px', color: '#a1a1aa', margin: 0 }}>
+                Software Supplier Licensing &amp; Master Provisioning
               </p>
             </div>
 
             {error && (
               <div style={{
-                background: 'rgba(239, 68, 68, 0.15)',
+                background: 'rgba(239, 68, 68, 0.1)',
                 border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: '#fca5a5',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                fontSize: '12px',
-                marginBottom: '16px',
+                color: '#f87171',
+                padding: '12px 16px',
+                borderRadius: '10px',
+                fontSize: '13px',
+                marginBottom: '20px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px'
+                gap: '10px'
               }}>
-                <AlertCircle size={16} />
+                <AlertCircle size={18} />
                 <span>{error}</span>
               </div>
             )}
 
-            <form onSubmit={e => handleLoginSubmit(e, 'SUPER_ADMIN')} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={e => handleLoginSubmit(e, 'SUPER_ADMIN')} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#cbd5e1', marginBottom: '6px', textTransform: 'uppercase' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#a1a1aa', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Username
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <User size={16} color="#64748b" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <User size={16} color="#71717a" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
                   <input
                     type="text"
                     value={username}
@@ -454,12 +482,12 @@ const LoginGate: React.FC = () => {
                     required
                     style={{
                       width: '100%',
-                      padding: '10px 12px 10px 38px',
-                      background: 'rgba(15, 23, 42, 0.6)',
-                      border: '1px solid #475569',
-                      borderRadius: '8px',
+                      padding: '12px 14px 12px 42px',
+                      background: '#18181b',
+                      border: '1px solid #27272a',
+                      borderRadius: '10px',
                       color: '#ffffff',
-                      fontSize: '13px',
+                      fontSize: '14px',
                       outline: 'none',
                       boxSizing: 'border-box'
                     }}
@@ -468,11 +496,11 @@ const LoginGate: React.FC = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#cbd5e1', marginBottom: '6px', textTransform: 'uppercase' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#a1a1aa', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Password
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <Lock size={16} color="#64748b" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <Lock size={16} color="#71717a" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
@@ -481,12 +509,12 @@ const LoginGate: React.FC = () => {
                     required
                     style={{
                       width: '100%',
-                      padding: '10px 40px 10px 38px',
-                      background: 'rgba(15, 23, 42, 0.6)',
-                      border: '1px solid #475569',
-                      borderRadius: '8px',
+                      padding: '12px 44px 12px 42px',
+                      background: '#18181b',
+                      border: '1px solid #27272a',
+                      borderRadius: '10px',
                       color: '#ffffff',
-                      fontSize: '13px',
+                      fontSize: '14px',
                       outline: 'none',
                       boxSizing: 'border-box'
                     }}
@@ -494,7 +522,7 @@ const LoginGate: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}
+                    style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#71717a', cursor: 'pointer' }}
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -505,23 +533,24 @@ const LoginGate: React.FC = () => {
                 type="submit"
                 disabled={isLoading}
                 style={{
-                  marginTop: '8px',
-                  padding: '12px',
-                  background: 'linear-gradient(135deg, #0284c7, #0369a1)',
-                  color: '#ffffff',
+                  marginTop: '10px',
+                  padding: '14px',
+                  background: '#ffffff',
+                  color: '#000000',
                   border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  fontWeight: 800,
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  fontWeight: 900,
                   cursor: isLoading ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)'
+                  boxShadow: '0 4px 16px rgba(255, 255, 255, 0.1)',
+                  transition: 'all 0.2s ease'
                 }}
               >
-                {isLoading ? <Loader2 size={16} className="spin" /> : 'Authenticate as Super Admin'}
+                {isLoading ? <Loader2 size={18} className="spin" /> : 'Authenticate as Super Admin'}
               </button>
             </form>
           </div>
@@ -532,83 +561,83 @@ const LoginGate: React.FC = () => {
         {/* ========================================================================= */}
         {activeGate === 'ADMIN' && (
           <div style={{
-            background: 'rgba(30, 41, 59, 0.85)',
-            backdropFilter: 'blur(25px)',
-            border: '1px solid rgba(168, 85, 247, 0.3)',
+            background: '#09090b',
+            border: '1px solid #27272a',
             borderRadius: '24px',
-            padding: '36px 32px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 50px rgba(168, 85, 247, 0.15)',
+            padding: '40px 36px',
+            boxShadow: '0 30px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(255, 255, 255, 0.05)',
             position: 'relative'
           }}>
             <button
               onClick={() => setActiveGate('SELECTION')}
               style={{
                 position: 'absolute',
-                top: '20px',
-                left: '20px',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: 'none',
-                color: '#94a3b8',
+                top: '22px',
+                left: '22px',
+                background: '#18181b',
+                border: '1px solid #27272a',
+                color: '#a1a1aa',
                 borderRadius: '8px',
-                padding: '6px 10px',
+                padding: '6px 12px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                fontSize: '11px',
+                fontSize: '12px',
                 fontWeight: 700
               }}
             >
               <ArrowLeft size={14} /> Back
             </button>
 
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '28px' }}>
               <div style={{
-                width: '50px',
-                height: '50px',
-                borderRadius: '14px',
-                background: 'linear-gradient(135deg, #9333ea, #7e22ce)',
+                width: '56px',
+                height: '56px',
+                borderRadius: '16px',
+                background: '#ffffff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto 12px',
-                boxShadow: '0 6px 16px rgba(147, 51, 234, 0.3)'
+                margin: '0 auto 16px',
+                color: '#000000',
+                boxShadow: '0 8px 20px rgba(255, 255, 255, 0.15)'
               }}>
-                <Store size={26} color="#ffffff" />
+                <Store size={28} />
               </div>
-              <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', margin: '0 0 4px 0' }}>
+              <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>
                 Company Admin Sign In
               </h2>
-              <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
-                Store Owner & General Business Management Terminal
+              <p style={{ fontSize: '13px', color: '#a1a1aa', margin: 0 }}>
+                Store Owner &amp; General Business Management Terminal
               </p>
             </div>
 
             {error && (
               <div style={{
-                background: 'rgba(239, 68, 68, 0.15)',
+                background: 'rgba(239, 68, 68, 0.1)',
                 border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: '#fca5a5',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                fontSize: '12px',
-                marginBottom: '16px',
+                color: '#f87171',
+                padding: '12px 16px',
+                borderRadius: '10px',
+                fontSize: '13px',
+                marginBottom: '20px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px'
+                gap: '10px'
               }}>
-                <AlertCircle size={16} />
+                <AlertCircle size={18} />
                 <span>{error}</span>
               </div>
             )}
 
-            <form onSubmit={e => handleLoginSubmit(e, 'ADMIN')} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={e => handleLoginSubmit(e, 'ADMIN')} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#cbd5e1', marginBottom: '6px', textTransform: 'uppercase' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#a1a1aa', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Username
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <User size={16} color="#64748b" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <User size={16} color="#71717a" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
                   <input
                     type="text"
                     value={username}
@@ -617,12 +646,12 @@ const LoginGate: React.FC = () => {
                     required
                     style={{
                       width: '100%',
-                      padding: '10px 12px 10px 38px',
-                      background: 'rgba(15, 23, 42, 0.6)',
-                      border: '1px solid #475569',
-                      borderRadius: '8px',
+                      padding: '12px 14px 12px 42px',
+                      background: '#18181b',
+                      border: '1px solid #27272a',
+                      borderRadius: '10px',
                       color: '#ffffff',
-                      fontSize: '13px',
+                      fontSize: '14px',
                       outline: 'none',
                       boxSizing: 'border-box'
                     }}
@@ -631,11 +660,11 @@ const LoginGate: React.FC = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#cbd5e1', marginBottom: '6px', textTransform: 'uppercase' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#a1a1aa', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Password
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <Lock size={16} color="#64748b" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <Lock size={16} color="#71717a" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
@@ -644,12 +673,12 @@ const LoginGate: React.FC = () => {
                     required
                     style={{
                       width: '100%',
-                      padding: '10px 40px 10px 38px',
-                      background: 'rgba(15, 23, 42, 0.6)',
-                      border: '1px solid #475569',
-                      borderRadius: '8px',
+                      padding: '12px 44px 12px 42px',
+                      background: '#18181b',
+                      border: '1px solid #27272a',
+                      borderRadius: '10px',
                       color: '#ffffff',
-                      fontSize: '13px',
+                      fontSize: '14px',
                       outline: 'none',
                       boxSizing: 'border-box'
                     }}
@@ -657,7 +686,7 @@ const LoginGate: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}
+                    style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#71717a', cursor: 'pointer' }}
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -668,23 +697,24 @@ const LoginGate: React.FC = () => {
                 type="submit"
                 disabled={isLoading}
                 style={{
-                  marginTop: '8px',
-                  padding: '12px',
-                  background: 'linear-gradient(135deg, #9333ea, #7e22ce)',
-                  color: '#ffffff',
+                  marginTop: '10px',
+                  padding: '14px',
+                  background: '#ffffff',
+                  color: '#000000',
                   border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  fontWeight: 800,
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  fontWeight: 900,
                   cursor: isLoading ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 12px rgba(147, 51, 234, 0.3)'
+                  boxShadow: '0 4px 16px rgba(255, 255, 255, 0.1)',
+                  transition: 'all 0.2s ease'
                 }}
               >
-                {isLoading ? <Loader2 size={16} className="spin" /> : 'Authenticate as Company Admin'}
+                {isLoading ? <Loader2 size={18} className="spin" /> : 'Authenticate as Company Admin'}
               </button>
             </form>
           </div>
@@ -695,83 +725,83 @@ const LoginGate: React.FC = () => {
         {/* ========================================================================= */}
         {activeGate === 'EMPLOYEE' && (
           <div style={{
-            background: 'rgba(30, 41, 59, 0.85)',
-            backdropFilter: 'blur(25px)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
+            background: '#09090b',
+            border: '1px solid #27272a',
             borderRadius: '24px',
-            padding: '36px 32px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 50px rgba(16, 185, 129, 0.15)',
+            padding: '40px 36px',
+            boxShadow: '0 30px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(255, 255, 255, 0.05)',
             position: 'relative'
           }}>
             <button
               onClick={() => setActiveGate('SELECTION')}
               style={{
                 position: 'absolute',
-                top: '20px',
-                left: '20px',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: 'none',
-                color: '#94a3b8',
+                top: '22px',
+                left: '22px',
+                background: '#18181b',
+                border: '1px solid #27272a',
+                color: '#a1a1aa',
                 borderRadius: '8px',
-                padding: '6px 10px',
+                padding: '6px 12px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                fontSize: '11px',
+                fontSize: '12px',
                 fontWeight: 700
               }}
             >
               <ArrowLeft size={14} /> Back
             </button>
 
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '28px' }}>
               <div style={{
-                width: '50px',
-                height: '50px',
-                borderRadius: '14px',
-                background: 'linear-gradient(135deg, #059669, #047857)',
+                width: '56px',
+                height: '56px',
+                borderRadius: '16px',
+                background: '#ffffff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto 12px',
-                boxShadow: '0 6px 16px rgba(16, 185, 129, 0.3)'
+                margin: '0 auto 16px',
+                color: '#000000',
+                boxShadow: '0 8px 20px rgba(255, 255, 255, 0.15)'
               }}>
-                <Users size={26} color="#ffffff" />
+                <Users size={28} />
               </div>
-              <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', margin: '0 0 4px 0' }}>
+              <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>
                 Employee Portal Sign In
               </h2>
-              <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
-                Store Cashier, Salesman & Staff Terminal Access
+              <p style={{ fontSize: '13px', color: '#a1a1aa', margin: 0 }}>
+                Store Cashier, Salesman &amp; Staff Terminal Access
               </p>
             </div>
 
             {error && (
               <div style={{
-                background: 'rgba(239, 68, 68, 0.15)',
+                background: 'rgba(239, 68, 68, 0.1)',
                 border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: '#fca5a5',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                fontSize: '12px',
-                marginBottom: '16px',
+                color: '#f87171',
+                padding: '12px 16px',
+                borderRadius: '10px',
+                fontSize: '13px',
+                marginBottom: '20px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px'
+                gap: '10px'
               }}>
-                <AlertCircle size={16} />
+                <AlertCircle size={18} />
                 <span>{error}</span>
               </div>
             )}
 
-            <form onSubmit={e => handleLoginSubmit(e, 'EMPLOYEE')} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={e => handleLoginSubmit(e, 'EMPLOYEE')} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#cbd5e1', marginBottom: '6px', textTransform: 'uppercase' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#a1a1aa', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Username
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <User size={16} color="#64748b" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <User size={16} color="#71717a" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
                   <input
                     type="text"
                     value={username}
@@ -780,12 +810,12 @@ const LoginGate: React.FC = () => {
                     required
                     style={{
                       width: '100%',
-                      padding: '10px 12px 10px 38px',
-                      background: 'rgba(15, 23, 42, 0.6)',
-                      border: '1px solid #475569',
-                      borderRadius: '8px',
+                      padding: '12px 14px 12px 42px',
+                      background: '#18181b',
+                      border: '1px solid #27272a',
+                      borderRadius: '10px',
                       color: '#ffffff',
-                      fontSize: '13px',
+                      fontSize: '14px',
                       outline: 'none',
                       boxSizing: 'border-box'
                     }}
@@ -794,11 +824,11 @@ const LoginGate: React.FC = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#cbd5e1', marginBottom: '6px', textTransform: 'uppercase' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#a1a1aa', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Password
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <Lock size={16} color="#64748b" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <Lock size={16} color="#71717a" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
@@ -807,12 +837,12 @@ const LoginGate: React.FC = () => {
                     required
                     style={{
                       width: '100%',
-                      padding: '10px 40px 10px 38px',
-                      background: 'rgba(15, 23, 42, 0.6)',
-                      border: '1px solid #475569',
-                      borderRadius: '8px',
+                      padding: '12px 44px 12px 42px',
+                      background: '#18181b',
+                      border: '1px solid #27272a',
+                      borderRadius: '10px',
                       color: '#ffffff',
-                      fontSize: '13px',
+                      fontSize: '14px',
                       outline: 'none',
                       boxSizing: 'border-box'
                     }}
@@ -820,7 +850,7 @@ const LoginGate: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}
+                    style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#71717a', cursor: 'pointer' }}
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -831,23 +861,24 @@ const LoginGate: React.FC = () => {
                 type="submit"
                 disabled={isLoading}
                 style={{
-                  marginTop: '8px',
-                  padding: '12px',
-                  background: 'linear-gradient(135deg, #059669, #047857)',
-                  color: '#ffffff',
+                  marginTop: '10px',
+                  padding: '14px',
+                  background: '#ffffff',
+                  color: '#000000',
                   border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  fontWeight: 800,
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  fontWeight: 900,
                   cursor: isLoading ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                  boxShadow: '0 4px 16px rgba(255, 255, 255, 0.1)',
+                  transition: 'all 0.2s ease'
                 }}
               >
-                {isLoading ? <Loader2 size={16} className="spin" /> : 'Authenticate as Staff Member'}
+                {isLoading ? <Loader2 size={18} className="spin" /> : 'Authenticate as Staff Member'}
               </button>
             </form>
           </div>

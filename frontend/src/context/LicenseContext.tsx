@@ -39,6 +39,10 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   // Global fetch interceptor to automatically route multi-device host and catch 403 LICENSE_EXPIRED
+  // NOTE: The initial license check is intentionally NOT called on mount.
+  // Lockout is triggered in two controlled ways only:
+  //   1. At login time — LoginGate detects LICENSE_EXPIRED and renders <Lockout>
+  //   2. Post-login — this interceptor catches 403 from authenticated API calls
   useEffect(() => {
     const originalFetch = window.fetch;
 
@@ -58,7 +62,7 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       try {
         const response = await originalFetch(resource, config);
 
-        // 2. Catch LICENSE_EXPIRED 403 Forbidden
+        // 2. Catch LICENSE_EXPIRED 403 Forbidden (only for authenticated API calls)
         if (response.status === 403) {
           const clone = response.clone();
           try {
@@ -80,7 +84,8 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     };
 
-    checkLicenseStatus();
+    // Do NOT call checkLicenseStatus() here — it would check the global license
+    // and block the login page for unauthenticated users.
 
     return () => {
       window.fetch = originalFetch;

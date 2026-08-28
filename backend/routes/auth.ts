@@ -80,6 +80,11 @@ router.post('/login', async (req, res) => {
           error: 'Access Denied: This portal is strictly for Store Staff & Cashiers. Company Admins must sign in via the Company Admin Portal.'
         });
       }
+    } else {
+      // No gate specified — block login entirely to prevent silent bypass
+      return res.status(400).json({
+        error: 'Login gate is required. Please select a portal (SUPER_ADMIN, ADMIN, or EMPLOYEE).'
+      });
     }
 
     // --- CLIENT COMPANY LICENSE LOCKOUT CHECK ---
@@ -89,7 +94,11 @@ router.post('/login', async (req, res) => {
         const isExpired = license.expiresAt && new Date() > new Date(license.expiresAt);
         if (license.isLocked || isExpired) {
           return res.status(403).json({
-            error: 'LICENSE_EXPIRED: Your store software subscription has expired or has been locked by the software supplier. Please contact your administrator.'
+            error: 'LICENSE_EXPIRED',
+            message: 'Your store software subscription has expired or has been locked by the software supplier. Please contact your administrator to renew.',
+            isLocked: Boolean(license.isLocked),
+            isExpired: Boolean(isExpired),
+            expiresAt: license.expiresAt ? new Date(license.expiresAt).toISOString() : null
           });
         }
       }

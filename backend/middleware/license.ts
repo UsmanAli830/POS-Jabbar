@@ -96,7 +96,12 @@ export async function getOrSeedLicense() {
 export async function checkLicense(req: Request, res: Response, next: NextFunction) {
   const path = req.path || '';
 
-  // 1. Whitelist essential, Auth, and Super Admin management routes
+  // 1. Pass through all non-API routes — static files, SPA root, etc. must never be blocked
+  if (!path.startsWith('/api')) {
+    return next();
+  }
+
+  // 2. Whitelist essential, Auth, Super Admin, and License management routes
   if (
     path.startsWith('/api/auth') ||
     path.startsWith('/api/super-admin') ||

@@ -3,10 +3,17 @@ title POS System - Starting...
 color 0B
 setlocal enabledelayedexpansion
 
-echo ====================================================================
-echo        POINT OF SALE SYSTEM - STARTING
-echo ====================================================================
-echo.
+:: Check if called in silent/auto-start mode (from Task Scheduler)
+set SILENT_MODE=0
+if /i "%1"=="/silent" set SILENT_MODE=1
+if /i "%1"=="--silent" set SILENT_MODE=1
+
+if %SILENT_MODE%==0 (
+    echo ====================================================================
+    echo        POINT OF SALE SYSTEM - STARTING
+    echo ====================================================================
+    echo.
+)
 
 :: -----------------------------------------------------------------------
 :: Check Node.js is available
@@ -17,33 +24,35 @@ if %errorlevel% neq 0 (
     echo  [ERROR] Node.js is not found on this PC!
     echo  Please run Install_Setup.bat first.
     echo.
-    pause
+    if %SILENT_MODE%==0 pause
     exit /b 1
 )
 
 :: -----------------------------------------------------------------------
 :: Free up port 3000 if something is already running on it
 :: -----------------------------------------------------------------------
-echo  Checking for existing processes on port 3000...
+if %SILENT_MODE%==0 echo  Checking for existing processes on port 3000...
 for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr :3000 ^| findstr LISTENING') do (
     taskkill /f /pid %%a >nul 2>&1
 )
-echo  Port 3000 is free.
-echo.
+if %SILENT_MODE%==0 echo  Port 3000 is free.
+if %SILENT_MODE%==0 echo.
 
 :: -----------------------------------------------------------------------
 :: Start Backend Server minimized in background
 :: -----------------------------------------------------------------------
-echo  Starting backend server...
+if %SILENT_MODE%==0 echo  Starting backend server...
 start "POS Backend Server" /min cmd /c "cd /d ""%~dp0backend"" && npm run dev"
 
 :: Wait for server to initialize
-echo  Waiting for server to start...
+if %SILENT_MODE%==0 echo  Waiting for server to start...
 timeout /t 4 /nobreak >nul
 
 :: -----------------------------------------------------------------------
-:: Open in browser (Chrome App Mode = feels like a native desktop app)
+:: Open in browser — ONLY when launched manually (not silent/auto-start)
 :: -----------------------------------------------------------------------
+if %SILENT_MODE%==1 goto :silent_done
+
 echo  Launching app window...
 echo.
 
@@ -66,3 +75,8 @@ echo   This window keeps the server alive. DO NOT close it.
 echo   To stop the server, close this window or run Stop_POS.bat
 echo ====================================================================
 echo.
+goto :eof
+
+:silent_done
+:: Silent/auto-start mode: server is running in background, no window shown
+exit /b 0

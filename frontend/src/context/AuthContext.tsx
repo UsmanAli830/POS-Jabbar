@@ -90,7 +90,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (!res.ok) {
-      throw new Error(data.error || `Login failed (Status: ${res.status})`);
+      const err = new Error(data.error || `Login failed (Status: ${res.status})`) as any;
+      // Attach structured data so callers can detect LICENSE_EXPIRED specifically
+      err.code = data.error;
+      err.message = data.message || data.error || `Login failed (Status: ${res.status})`;
+      err.expiresAt = data.expiresAt;
+      err.isLocked = data.isLocked;
+      err.isExpired = data.isExpired;
+      throw err;
     }
 
     const userPayload = data.user || data.employee;

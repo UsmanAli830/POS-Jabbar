@@ -11,7 +11,7 @@ echo.
 :: -----------------------------------------------------------------------
 :: STEP 1: Check Node.js
 :: -----------------------------------------------------------------------
-echo  [1/5] Checking Node.js installation...
+echo  [1/6] Checking Node.js installation...
 where node >nul 2>nul
 if %errorlevel% neq 0 (
     color 0C
@@ -34,7 +34,7 @@ echo.
 :: -----------------------------------------------------------------------
 :: STEP 2: Backend dependencies + Database
 :: -----------------------------------------------------------------------
-echo  [2/5] Installing backend packages (this may take a few minutes)...
+echo  [2/6] Installing backend packages (this may take a few minutes)...
 cd /d "%~dp0backend"
 
 call npm install
@@ -50,7 +50,7 @@ if %errorlevel% neq 0 (
 echo  OK  Backend packages installed.
 echo.
 
-echo  [3/5] Setting up database...
+echo  [3/6] Setting up database...
 call npx prisma db push --skip-generate
 if %errorlevel% neq 0 (
     color 0C
@@ -74,7 +74,7 @@ echo.
 :: -----------------------------------------------------------------------
 :: STEP 4: Frontend build
 :: -----------------------------------------------------------------------
-echo  [4/5] Building the app (frontend production build)...
+echo  [4/6] Building the app (frontend production build)...
 cd /d "%~dp0frontend"
 
 call npm install
@@ -103,7 +103,7 @@ echo.
 :: -----------------------------------------------------------------------
 :: STEP 5: Desktop Shortcut
 :: -----------------------------------------------------------------------
-echo  [5/5] Creating desktop shortcut...
+echo  [5/6] Creating desktop shortcut...
 cd /d "%~dp0"
 
 set VBS_SCRIPT="%TEMP%\CreatePOSShortcut.vbs"
@@ -123,6 +123,28 @@ echo  OK  Desktop shortcut created: "POS System"
 echo.
 
 :: -----------------------------------------------------------------------
+:: STEP 6: Register Windows Task Scheduler for Auto-Start on Boot
+:: -----------------------------------------------------------------------
+echo  [6/6] Registering auto-start task (runs silently on every login)...
+
+:: Store VBS path in a variable to safely handle spaces in directory names
+set "VBS_PATH=%~dp0Start_POS_Silent.vbs"
+
+:: Remove old task if it exists (ignore error if not found)
+schtasks /delete /tn "POS System Startup" /f >nul 2>&1
+
+:: Register new task: runs Start_POS_Silent.vbs at user logon, in background
+schtasks /create /tn "POS System Startup" /tr "wscript.exe ""%VBS_PATH%""" /sc onlogon /rl highest /f >nul 2>&1
+
+if %errorlevel% neq 0 (
+    echo  WARN Auto-start task registration may have failed ^(needs Admin rights^).
+    echo       Right-click Install_Setup.bat and choose 'Run as administrator'.
+) else (
+    echo  OK  Auto-start registered. POS server starts automatically on every login.
+)
+echo.
+
+:: -----------------------------------------------------------------------
 :: Done
 :: -----------------------------------------------------------------------
 color 0A
@@ -131,6 +153,9 @@ echo   INSTALLATION COMPLETE!
 echo.
 echo   A shortcut "POS System" has been added to your Desktop.
 echo   Double-click it to start the software anytime.
+echo.
+echo   AUTO-START: The server is now registered to start automatically
+echo   on every Windows login — no manual steps needed after reboot!
 echo.
 echo   Default Login Credentials:
 echo   - Super Admin:  superadmin / superadmin123!
