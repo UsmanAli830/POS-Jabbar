@@ -61,6 +61,22 @@ router.post('/', async (req, res) => {
       case 'weightUnit':
         createdRecord = await prisma.weightUnit.create({ data: { name: trimmedName } });
         break;
+      case 'zone':
+        createdRecord = await prisma.zone.create({ data: { name: trimmedName, companyId: tenantCompanyId || null } });
+        break;
+      case 'area':
+      case 'areaRecord':
+        createdRecord = await prisma.areaRecord.create({ data: { name: trimmedName, companyId: tenantCompanyId || null } });
+        break;
+      case 'route':
+        createdRecord = await prisma.route.create({ data: { name: trimmedName, companyId: tenantCompanyId || null } });
+        break;
+      case 'loadType':
+        createdRecord = await prisma.loadType.create({ data: { name: trimmedName } });
+        break;
+      case 'vanRec':
+        createdRecord = await prisma.vanRec.create({ data: { name: trimmedName } });
+        break;
       default:
         return res.status(400).json({ error: 'Invalid master data type' });
     }

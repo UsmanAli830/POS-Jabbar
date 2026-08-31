@@ -80,6 +80,29 @@ router.get('/search', async (req, res) => {
   }
 });
 
+// GET next available product code
+router.get('/next-code', async (req, res) => {
+  try {
+    const tenantFilter = getTenantFilter(req);
+    const products = await prisma.productRec.findMany({
+      where: tenantFilter,
+      select: { productCode: true }
+    });
+
+    const numericCodes = products
+      .map(p => p.productCode ? Number(p.productCode) : NaN)
+      .filter(code => !isNaN(code) && code > 0);
+
+    let nextCode = 1;
+    while (numericCodes.includes(nextCode)) {
+      nextCode++;
+    }
+    res.json({ nextCode: String(nextCode) });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch next product code' });
+  }
+});
+
 // GET single product by ID
 router.get('/:id', async (req, res) => {
   try {
@@ -110,10 +133,15 @@ router.get('/:id', async (req, res) => {
 function parseProductData(body: any) {
   const data = { ...body };
 
+  // Map brandId to companyId if brandId is provided
+  if (data.brandId !== undefined && data.brandId !== null && data.brandId !== '') {
+    data.companyId = data.brandId;
+  }
+
   // Convert strings to numbers if they exist
   const numericFields = [
     'retailPrice', 'costPrice', 'wholeSalePrice', 'tradePrice', 'currentStock', 'minLevel', 'dangerLevel',
-    'pCatId', 'subCatId', 'pTypeId', 'weightUnitId', 'formulaId', 'companyId', 'activeTypeId'
+    'pCatId', 'subCatId', 'pTypeId', 'weightUnitId', 'formulaId', 'companyId', 'brandId', 'activeTypeId'
   ];
   
   numericFields.forEach(field => {
@@ -254,10 +282,6 @@ router.put('/:id', async (req, res) => {
     }
 
     const parsedData = parseProductData(req.body);
-    const tenantCompanyId = getTenantCompanyId(req);
-    if (tenantCompanyId) {
-      parsedData.companyId = tenantCompanyId;
-    }
 
     const product = await prisma.productRec.update({
       where: { id },

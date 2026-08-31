@@ -139,6 +139,14 @@ const InventoryControl: React.FC = () => {
     }
   };
 
+  const totalValuation = useMemo(() => {
+    return filteredStock.reduce((acc, item) => {
+      const stock = item.stock || 0;
+      const cost = item.costPrice || 0;
+      return acc + (stock * cost);
+    }, 0);
+  }, [filteredStock]);
+
   return (
     <div className="page-wrapper" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div className="page-heading-banner">
@@ -186,6 +194,36 @@ const InventoryControl: React.FC = () => {
         
         {/* Left Pane: Stock Data Grid */}
         <div className="glass-panel" style={{ flex: '1', overflowY: 'auto', padding: '16px' }}>
+          
+          {/* Prominent Inventory Valuation Header Card */}
+          <div style={{
+            background: 'linear-gradient(135deg, #0f172a, #1e293b)',
+            borderRadius: '10px',
+            padding: '14px 20px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            color: '#ffffff',
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.18)',
+            border: '1px solid #334155'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <PackageCheck size={22} color="#38bdf8" />
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                  Total Inventory Valuation
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  Aggregated sum of (Current Stock × Cost Price) for filtered items
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize: '22px', fontWeight: 900, color: '#38bdf8', letterSpacing: '-0.5px' }}>
+              Rs. {totalValuation.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </div>
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ fontWeight: 600, color: 'var(--accent-primary)' }}>Current Stock Level</div>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -213,33 +251,42 @@ const InventoryControl: React.FC = () => {
                 <tr>
                   <th>Product Code</th>
                   <th>Product Name</th>
-                  <th>Price</th>
+                  <th>Sale Price</th>
+                  <th>Cost Price</th>
                   <th>Current Stock</th>
+                  <th>Total Cost Value</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStock.length === 0 ? (
-                  <tr><td colSpan={4} style={{ textAlign: 'center', opacity: 0.5 }}>No products found</td></tr>
+                  <tr><td colSpan={6} style={{ textAlign: 'center', opacity: 0.5 }}>No products found</td></tr>
                 ) : (
-                  filteredStock.map(item => (
-                    <tr 
-                      key={item.id} 
-                      onClick={() => setSelectedProduct(item)}
-                      style={{ background: selectedProduct?.id === item.id ? 'rgba(59, 130, 246, 0.15)' : '' }}
-                    >
-                      <td>{item.productCode}</td>
-                      <td style={{ fontWeight: 600 }}>{item.productName}</td>
-                      <td>Rs. {item.salePrice.toLocaleString()}</td>
-                      <td>
-                        <span style={{ 
-                          fontWeight: 'bold', 
-                          color: item.stock < 0 ? '#ef4444' : (item.stock > 0 ? '#22c55e' : 'inherit')
-                        }}>
-                          {item.stock}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
+                  filteredStock.map(item => {
+                    const rowValuation = (item.stock || 0) * (item.costPrice || 0);
+                    return (
+                      <tr 
+                        key={item.id} 
+                        onClick={() => setSelectedProduct(item)}
+                        style={{ background: selectedProduct?.id === item.id ? 'rgba(59, 130, 246, 0.15)' : '' }}
+                      >
+                        <td>{item.productCode}</td>
+                        <td style={{ fontWeight: 600 }}>{item.productName}</td>
+                        <td>Rs. {item.salePrice.toLocaleString()}</td>
+                        <td>Rs. {(item.costPrice || 0).toLocaleString()}</td>
+                        <td>
+                          <span style={{ 
+                            fontWeight: 'bold', 
+                            color: item.stock < 0 ? '#ef4444' : (item.stock > 0 ? '#22c55e' : 'inherit')
+                          }}>
+                            {item.stock}
+                          </span>
+                        </td>
+                        <td style={{ fontWeight: 700, color: rowValuation < 0 ? '#ef4444' : '#0f172a' }}>
+                          Rs. {rowValuation.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

@@ -1094,13 +1094,15 @@ router.get('/balance-sheet', requirePermission('balance-sheet'), async (req, res
 
     const cashAndBank = Math.max(50000, totalDeposits + (salesCash._sum.totalAmount || 0) - (expensesPaid._sum.amount || 0));
 
-    // 2. Accounts Receivable (AR)
+    // 2. Accounts Receivable (AR) & Customer Overpayments (Liabilities)
     const customers = await prisma.customerRec.findMany({
       include: { finHead: { include: { cashFlowDtls: true } } }
     });
 
     let accountsReceivable = 0;
+    let customerOverpayments = 0;
     const receivablesDetail: any[] = [];
+    const overpaymentsDetail: any[] = [];
 
     customers.forEach(c => {
       let bal = c.openingBalance || 0;
@@ -1119,10 +1121,22 @@ router.get('/balance-sheet', requirePermission('balance-sheet'), async (req, res
           address: c.address || '',
           balance: bal
         });
+      } else if (bal < 0) {
+        const absBal = Math.abs(bal);
+        customerOverpayments += absBal;
+        overpaymentsDetail.push({
+          id: c.id,
+          name: c.custName,
+          businessName: c.businessName || '',
+          phone: c.phone || '',
+          address: c.address || '',
+          balance: absBal
+        });
       }
     });
 
     receivablesDetail.sort((a, b) => b.balance - a.balance);
+    overpaymentsDetail.sort((a, b) => b.balance - a.balance);
 
     // 3. Inventory Valuation
     const products = await prisma.productRec.findMany();
@@ -1205,7 +1219,7 @@ router.get('/balance-sheet', requirePermission('balance-sheet'), async (req, res
     const otherLiabilities = 0;
 
     // TOTAL LIABILITIES
-    const totalLiabilities = accountsPayable + otherLiabilities;
+    const totalLiabilities = accountsPayable + customerOverpayments + otherLiabilities;
 
     // 7. Retained Earnings (Cumulative Net Profit)
     const sales = await prisma.saleMain.findMany({
@@ -1249,6 +1263,7 @@ router.get('/balance-sheet', requirePermission('balance-sheet'), async (req, res
       },
       liabilities: {
         accountsPayable,
+        customerOverpayments,
         otherLiabilities,
         totalLiabilities
       },
@@ -1259,6 +1274,7 @@ router.get('/balance-sheet', requirePermission('balance-sheet'), async (req, res
       },
       totalLiabilitiesAndEquity,
       receivablesDetail,
+      overpaymentsDetail,
       payablesDetail,
       assetsDetail
     });

@@ -1,22 +1,41 @@
 import request from 'supertest';
 import app from '../app';
 import { PrismaClient } from '@prisma/client';
+import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
+const JWT_SECRET = process.env.JWT_SECRET || 'wholesale_pos_super_secret_jwt_key_2026';
+
+let adminToken: string;
 
 beforeAll(async () => {
-  // Clear tables before running this suite
+  // Clear tables in proper FK order
   await prisma.cashFlowDTL.deleteMany({});
   await prisma.cashFlowMAIN.deleteMany({});
   await prisma.recovery.deleteMany({});
+  await prisma.manualSaleRtnDtl.deleteMany({});
+  await prisma.manualSaleRtnMain.deleteMany({});
+  await prisma.purRtnDtl.deleteMany({});
+  await prisma.purRtnMain.deleteMany({});
   await prisma.saleInvDtl.deleteMany({});
+  await prisma.purDtl.deleteMany({});
+  await prisma.damagedStock.deleteMany({});
   await prisma.saleMain.deleteMany({});
+  await prisma.purMain.deleteMany({});
   await prisma.productRec.deleteMany({});
-  await prisma.pCat.deleteMany({});
   await prisma.customerRec.deleteMany({});
+  await prisma.sellerRec.deleteMany({});
   await prisma.finHead.deleteMany({});
-  await prisma.finHeadMainGroup.deleteMany({});
+  await prisma.pCat.deleteMany({});
   
+  let emp = await prisma.employeeRec.findFirst();
+  if (!emp) {
+    emp = await prisma.employeeRec.create({
+      data: { name: 'Golden Salesman', baseSalary: 50000 }
+    });
+  }
+  adminToken = jwt.sign({ id: emp.id, username: 'admin', role: 'SUPER_ADMIN' }, JWT_SECRET);
+
   let revGroup = await prisma.finHeadMainGroup.findFirst({ where: { name: 'Revenue' } });
   if (!revGroup) revGroup = await prisma.finHeadMainGroup.create({ data: { name: 'Revenue' } });
   
@@ -40,10 +59,13 @@ describe('Golden Path Ledger Sync', () => {
   let categoryId: number;
 
   it('1. Creates a CustomerRec with OpeningBalance = $0', async () => {
-    const res = await request(app).post('/api/customers').send({
-      custName: 'Golden Path Customer',
-      openingBalance: 0
-    });
+    const res = await request(app)
+      .post('/api/customers')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        custName: 'Golden Path Customer',
+        openingBalance: 0
+      });
     expect(res.status).toBe(201);
     expect(res.body.id).toBeDefined();
     customerId = res.body.id;
@@ -73,15 +95,18 @@ describe('Golden Path Ledger Sync', () => {
     const cashHead = await prisma.finHead.findFirst({ where: { name: 'Cash in Till' } });
     if (!cashHead) await prisma.finHead.create({ data: { name: 'Cash in Till' } });
 
-    const res = await request(app).post('/api/sales').send({
-      customerId: customerId,
-      items: [
-        { productId: productId, quantity: 5, unitPrice: 10 }
-      ],
-      paymentMethod: 'Credit / Unpaid',
-      subtotal: 50,
-      total: 50
-    });
+    const res = await request(app)
+      .post('/api/sales')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        customerId: customerId,
+        items: [
+          { productId: productId, quantity: 5, unitPrice: 10 }
+        ],
+        paymentMethod: 'Credit / Unpaid',
+        subtotal: 50,
+        total: 50
+      });
     
     expect(res.status).toBe(201);
   });
@@ -92,7 +117,9 @@ describe('Golden Path Ledger Sync', () => {
   });
 
   it('5. Asserts the Customer live balance is exactly $50 and CashFlowDTL entry was created', async () => {
-    const res = await request(app).get('/api/customers');
+    const res = await request(app)
+      .get('/api/customers')
+      .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     const customer = res.body.find((c: any) => c.id === customerId);
     expect(customer).toBeDefined();
@@ -109,16 +136,21 @@ describe('Golden Path Ledger Sync', () => {
   });
 
   it('6. Hits POST /api/payments/receive to log a $50 cash payment', async () => {
-    const res = await request(app).post('/api/payments/receive').send({
-      customerId: customerId,
-      amount: 50,
-      remarks: 'Golden Path Payment'
-    });
+    const res = await request(app)
+      .post('/api/payments/receive')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        customerId: customerId,
+        amount: 50,
+        remarks: 'Golden Path Payment'
+      });
     expect(res.status).toBe(201);
   });
 
   it('7. Asserts the Customer live balance is exactly $0', async () => {
-    const res = await request(app).get('/api/customers');
+    const res = await request(app)
+      .get('/api/customers')
+      .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     const customer = res.body.find((c: any) => c.id === customerId);
     expect(customer).toBeDefined();

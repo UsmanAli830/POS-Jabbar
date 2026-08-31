@@ -152,6 +152,31 @@ const ProductsRecord: React.FC = () => {
     }
   };
 
+  const fetchNextProductCode = async () => {
+    try {
+      const res = await fetch('http://localhost:3000/api/products/next-code');
+      if (res.ok) {
+        const data = await res.json();
+        return data.nextCode || '1';
+      }
+    } catch (e) {
+      console.error('Failed to fetch next product code', e);
+    }
+    return '1';
+  };
+
+  const handleAddNew = async () => {
+    const nextCode = await fetchNextProductCode();
+    setEditingId(null);
+    setFormMode('CREATE');
+    setSelectedProductData(null);
+    setFormData({
+      productCode: nextCode, barCode: '', productName: '',
+      retailPrice: '', costPrice: '', currentStock: '', minLevel: '',
+      pCatId: '', subCatId: '', pTypeId: '', weightUnitId: '', formulaId: '', companyId: '', activeTypeId: ''
+    });
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     if (type === 'checkbox') {
@@ -445,16 +470,7 @@ const ProductsRecord: React.FC = () => {
                 }
               }} style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Cancel</button>
             ) : (
-              <button onClick={() => {
-                setEditingId(null);
-                setFormMode('CREATE');
-                setSelectedProductData(null);
-                setFormData({
-                  productCode: '', barCode: '', productName: '',
-                  retailPrice: '', costPrice: '', currentStock: '', minLevel: '',
-                  pCatId: '', subCatId: '', pTypeId: '', weightUnitId: '', formulaId: '', companyId: '', activeTypeId: ''
-                });
-              }} style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Clear</button>
+              <button onClick={handleAddNew} style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>+ New</button>
             )}
 
             {formMode === 'VIEW' ? (

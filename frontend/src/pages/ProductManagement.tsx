@@ -8,6 +8,8 @@ import { useInventory } from '../context/InventoryContext';
 
 import { useAuth } from '../context/AuthContext';
 
+type DropdownOption = { id: number; name: string };
+
 const ProductManagement: React.FC = () => {
   const { refreshInventory } = useInventory();
   const { token } = useAuth();
@@ -64,6 +66,35 @@ const ProductManagement: React.FC = () => {
     );
   }, [products, searchQuery]);
 
+  // Inline Quick Add Modal State
+  const [quickAddModal, setQuickAddModal] = useState<{
+    type: string;
+    title: string;
+    setter: React.Dispatch<React.SetStateAction<DropdownOption[]>>;
+    selectedSetter: (id: number) => void;
+  } | null>(null);
+
+  const handleQuickAddSave = async (name: string) => {
+    if (!quickAddModal) return;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch('http://localhost:3000/api/master-data-post', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ type: quickAddModal.type, name })
+    });
+    if (res.ok) {
+      const newRec = await res.json();
+      const newOpt = { id: newRec.id, name: newRec.name };
+      quickAddModal.setter(prev => [...prev, newOpt]);
+      quickAddModal.selectedSetter(newRec.id);
+      setQuickAddModal(null);
+    } else {
+      const err = await res.json();
+      alert('Failed: ' + (err.error || 'Could not save option'));
+    }
+  };
+
   useEffect(() => {
     fetchMasterData();
     fetchFormulas();
@@ -113,6 +144,34 @@ const ProductManagement: React.FC = () => {
     }
   };
 
+
+  const fetchNextProductCode = async () => {
+    try {
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch('http://localhost:3000/api/products/next-code', { headers });
+      if (res.ok) {
+        const data = await res.json();
+        return data.nextCode || '1';
+      }
+    } catch (e) {
+      console.error('Failed to fetch next product code', e);
+    }
+    return '1';
+  };
+
+  const handleAddNew = async () => {
+    const nextCode = await fetchNextProductCode();
+    setFormData({
+      productCode: nextCode, barCode: '', productName: '',
+      retailPrice: '', wholeSalePrice: '', tradePrice: '', costPrice: '', 
+      currentStock: '', minLevel: '', dangerLevel: '',
+      pCatId: '', subCatId: '', pTypeId: '', weightUnitId: '', formulaId: '', companyId: '', activeTypeId: ''
+    });
+    setEditingId(null);
+    setSelectedProductData(null);
+    setFormMode('CREATE');
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -263,7 +322,7 @@ const ProductManagement: React.FC = () => {
       pTypeId: pd.pTypeId?.toString() || '',
       weightUnitId: pd.weightUnitId?.toString() || '',
       formulaId: pd.formulaId?.toString() || '',
-      companyId: pd.companyId?.toString() || '',
+      companyId: (pd.companyId || pd.brandId)?.toString() || '',
       activeTypeId: pd.activeTypeId?.toString() || ''
     });
   }, []);
@@ -306,17 +365,7 @@ const ProductManagement: React.FC = () => {
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             {(formMode === 'DISABLED' || formMode === 'VIEW') && (
               <button 
-                onClick={() => {
-                  setFormData({
-                    productCode: '', barCode: '', productName: '',
-                    retailPrice: '', wholeSalePrice: '', tradePrice: '', costPrice: '', 
-                    currentStock: '', minLevel: '', dangerLevel: '',
-                    pCatId: '', subCatId: '', pTypeId: '', weightUnitId: '', formulaId: '', companyId: '', activeTypeId: ''
-                  });
-                  setEditingId(null);
-                  setSelectedProductData(null);
-                  setFormMode('CREATE');
-                }} 
+                onClick={handleAddNew} 
                 className="bg-[#0088cc] hover:bg-[#0077b5] text-white font-semibold px-3 py-1 rounded-md shadow-sm transition-all duration-150 flex items-center gap-1 text-xs"
               >
                 <Plus size={12} className="text-purple-300" /> + Add New
@@ -440,39 +489,94 @@ const ProductManagement: React.FC = () => {
               </div>
               <div className="form-group">
                 <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Category (PCat)</label>
-                <select name="pCatId" value={formData.pCatId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
-                  <option value="">-- Select --</option>
-                  {pCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="flex gap-2 items-center w-full">
+                  <select name="pCatId" value={formData.pCatId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none flex-1 shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
+                    <option value="">-- Select --</option>
+                    {pCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button 
+                    type="button" 
+                    onClick={() => setQuickAddModal({ type: 'pCat', title: 'Category', setter: setPCats, selectedSetter: (id) => setFormData(prev => ({ ...prev, pCatId: id.toString() })) })} 
+                    className="bg-[#0088cc] hover:bg-[#0077b5] text-white p-2 rounded-md transition-colors w-10 h-10 flex items-center justify-center font-bold text-lg flex-shrink-0"
+                    disabled={formMode === 'VIEW' || formMode === 'DISABLED'}
+                    title="Add New Category"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
               <div className="form-group">
                 <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Sub Category</label>
-                <select name="subCatId" value={formData.subCatId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
-                  <option value="">-- Select --</option>
-                  {subCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="flex gap-2 items-center w-full">
+                  <select name="subCatId" value={formData.subCatId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none flex-1 shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
+                    <option value="">-- Select --</option>
+                    {subCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button 
+                    type="button" 
+                    onClick={() => setQuickAddModal({ type: 'subCat', title: 'Sub Category', setter: setSubCats, selectedSetter: (id) => setFormData(prev => ({ ...prev, subCatId: id.toString() })) })} 
+                    className="bg-[#0088cc] hover:bg-[#0077b5] text-white p-2 rounded-md transition-colors w-10 h-10 flex items-center justify-center font-bold text-lg flex-shrink-0"
+                    disabled={formMode === 'VIEW' || formMode === 'DISABLED'}
+                    title="Add New Sub Category"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
               <div className="form-group">
                 <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Brand (Company)</label>
-                <select name="companyId" value={formData.companyId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
-                  <option value="">-- Select --</option>
-                  {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="flex gap-2 items-center w-full">
+                  <select name="companyId" value={formData.companyId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none flex-1 shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
+                    <option value="">-- Select --</option>
+                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button 
+                    type="button" 
+                    onClick={() => setQuickAddModal({ type: 'company', title: 'Brand (Company)', setter: setCompanies, selectedSetter: (id) => setFormData(prev => ({ ...prev, companyId: id.toString() })) })} 
+                    className="bg-[#0088cc] hover:bg-[#0077b5] text-white p-2 rounded-md transition-colors w-10 h-10 flex items-center justify-center font-bold text-lg flex-shrink-0"
+                    disabled={formMode === 'VIEW' || formMode === 'DISABLED'}
+                    title="Add New Brand"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div className="form-group" style={{ flex: 1 }}>
                   <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Product Type</label>
-                  <select name="pTypeId" value={formData.pTypeId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
-                    <option value="">-- Select --</option>
-                    {pTypes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <div className="flex gap-2 items-center w-full">
+                    <select name="pTypeId" value={formData.pTypeId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none flex-1 shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
+                      <option value="">-- Select --</option>
+                      {pTypes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <button 
+                      type="button" 
+                      onClick={() => setQuickAddModal({ type: 'pType', title: 'Product Type', setter: setPTypes, selectedSetter: (id) => setFormData(prev => ({ ...prev, pTypeId: id.toString() })) })} 
+                      className="bg-[#0088cc] hover:bg-[#0077b5] text-white p-2 rounded-md transition-colors w-10 h-10 flex items-center justify-center font-bold text-lg flex-shrink-0"
+                      disabled={formMode === 'VIEW' || formMode === 'DISABLED'}
+                      title="Add New Product Type"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
                 <div className="form-group" style={{ flex: 1 }}>
                   <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Weight Unit</label>
-                  <select name="weightUnitId" value={formData.weightUnitId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
-                    <option value="">-- Select --</option>
-                    {weightUnits.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <div className="flex gap-2 items-center w-full">
+                    <select name="weightUnitId" value={formData.weightUnitId} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none flex-1 shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'}>
+                      <option value="">-- Select --</option>
+                      {weightUnits.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <button 
+                      type="button" 
+                      onClick={() => setQuickAddModal({ type: 'weightUnit', title: 'Weight Unit', setter: setWeightUnits, selectedSetter: (id) => setFormData(prev => ({ ...prev, weightUnitId: id.toString() })) })} 
+                      className="bg-[#0088cc] hover:bg-[#0077b5] text-white p-2 rounded-md transition-colors w-10 h-10 flex items-center justify-center font-bold text-lg flex-shrink-0"
+                      disabled={formMode === 'VIEW' || formMode === 'DISABLED'}
+                      title="Add New Weight Unit"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -602,6 +706,62 @@ const ProductManagement: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Quick Add Modal Popup */}
+      {quickAddModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: '#ffffff', borderRadius: '12px', width: '380px', padding: '20px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)', border: '1px solid #e2e8f0'
+          }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginBottom: '12px' }}>
+              Add New {quickAddModal.title}
+            </h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const inputEl = e.currentTarget.elements.namedItem('quickAddInput') as HTMLInputElement;
+              if (inputEl && inputEl.value.trim()) {
+                handleQuickAddSave(inputEl.value.trim());
+              }
+            }}>
+              <input
+                type="text"
+                name="quickAddInput"
+                autoFocus
+                placeholder={`Enter new ${quickAddModal.title} name...`}
+                style={{
+                  width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1',
+                  fontSize: '14px', marginBottom: '16px', outline: 'none'
+                }}
+              />
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setQuickAddModal(null)}
+                  style={{
+                    padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1',
+                    background: '#f8fafc', color: '#475569', fontWeight: 600, fontSize: '13px', cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '8px 16px', borderRadius: '6px', border: 'none',
+                    background: '#0088cc', color: '#ffffff', fontWeight: 700, fontSize: '13px', cursor: 'pointer'
+                  }}
+                >
+                  Save Option
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

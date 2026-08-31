@@ -420,7 +420,9 @@ async function testLicenseLockout() {
 
   // Restore
   await prisma.softwareLicense.updateMany({ where: { companyId: companyAId }, data: { isLocked: false, expiresAt: new Date(Date.now() + 365*86400000) } });
-  pass('Company A license restored');
+  console.log('  ⏳  Waiting 6s for license cache to clear after restoration...');
+  await new Promise(r => setTimeout(r, 6100));
+  pass('Company A license restored & cache cleared');
 }
 
 // ═══════════════════════════════════════════════
@@ -486,6 +488,58 @@ async function testDoubleEntry() {
 }
 
 // ═══════════════════════════════════════════════
+// PART 3D — AUTO-SERIAL CODE & INLINE LOOKUP CREATION
+// ═══════════════════════════════════════════════
+async function testAutoSerialAndInlineLookup() {
+  section('PART 3D — AUTO-SERIAL & INLINE LOOKUP CREATION');
+
+  // Seed numeric products: 1 and 2
+  await api('POST', '/products', { productName: 'QA Product 1', productCode: '1', retailPrice: 100, costPrice: 50 }, adminAToken);
+  await api('POST', '/products', { productName: 'QA Product 2', productCode: '2', retailPrice: 100, costPrice: 50 }, adminAToken);
+
+  // 1. Next Product Code calculation (should return "3")
+  const res1 = await api('GET', '/products/next-code', undefined, adminAToken);
+  assert(res1.status === 200, '/products/next-code returns 200');
+  assert(Number(res1.data?.nextCode) >= 3, `Next product code auto-calculated: ${res1.data?.nextCode}`);
+
+  // Save product with override code 100
+  const overrideCode = '100';
+  const newProductRes = await api('POST', '/products', {
+    productName: 'QA Override Product 100',
+    productCode: overrideCode,
+    retailPrice: 100,
+    costPrice: 50
+  }, adminAToken);
+  assert(newProductRes.status === 201 || newProductRes.status === 200, `Saved product with custom override code ${overrideCode}`);
+
+  // Subsequent next-code request should return 101!
+  const res2 = await api('GET', '/products/next-code', undefined, adminAToken);
+  assert(res2.status === 200, '/products/next-code after override returns 200');
+  assert(Number(res2.data?.nextCode) === 101, `Next code incremented past override: expected 101, got ${res2.data?.nextCode}`);
+
+  // 2. Inline Lookup Creation for Zone
+  const zoneRes = await api('POST', '/master-data-post', { type: 'zone', name: 'Zone West QA' }, adminAToken);
+  assert(zoneRes.status === 201 || zoneRes.status === 200, 'Created Zone West QA via master-data-post');
+  assert(zoneRes.data?.id > 0 && zoneRes.data?.name === 'Zone West QA', 'Zone returns valid ID and name');
+
+  // Verify companyId scoping on Zone
+  if (zoneRes.data?.id) {
+    const createdZoneDB = await prisma.zone.findUnique({ where: { id: zoneRes.data.id } });
+    assert(createdZoneDB?.companyId === companyAId, `Zone assigned to correct tenant companyId (${companyAId})`);
+  }
+
+  // 3. Inline Lookup Creation for Category (PCat)
+  const catRes = await api('POST', '/master-data-post', { type: 'pCat', name: 'Category North QA' }, adminAToken);
+  assert(catRes.status === 201 || catRes.status === 200, 'Created Category North QA via master-data-post');
+  assert(catRes.data?.id > 0 && catRes.data?.name === 'Category North QA', 'Category returns valid ID and name');
+
+  if (catRes.data?.id) {
+    const createdCatDB = await prisma.pCat.findUnique({ where: { id: catRes.data.id } });
+    assert(createdCatDB?.companyId === companyAId, `Category assigned to correct tenant companyId (${companyAId})`);
+  }
+}
+
+// ═══════════════════════════════════════════════
 // CLEANUP
 // ═══════════════════════════════════════════════
 async function cleanup() {
@@ -506,7 +560,8 @@ async function cleanup() {
     await prisma.userPermission.deleteMany({ where: { employeeRec: { companyId: { in: ids } } } });
     await prisma.postRec.deleteMany({ where: { companyId: { in: ids } } });
     await prisma.employeeRec.deleteMany({ where: { companyId: { in: ids } } });
-    await prisma.employeeRec.deleteMany({ where: { username: 'qa_superadmin' } });
+    await prisma.zone.deleteMany({ where: { companyId: { in: ids } } });
+    await prisma.pCat.deleteMany({ where: { companyId: { in: ids } } });
     await prisma.company.deleteMany({ where: { id: { in: ids } } });
     pass('All QA test data cleaned up');
   } catch (e: any) { fail('Cleanup', e.message); }
@@ -531,6 +586,7 @@ async function main() {
     await testLicenseLockout();
     await testAuthTokens();
     await testDoubleEntry();
+    await testAutoSerialAndInlineLookup();
   } finally {
     await cleanup();
     await prisma.$disconnect();

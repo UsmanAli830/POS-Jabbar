@@ -83,6 +83,33 @@ const CustomerManagement: React.FC = () => {
   // Grid Selection
   const [selectedRows, setSelectedRows] = useState<CustomerRec[]>([]);
 
+  // Inline Quick Add Modal State
+  const [quickAddModal, setQuickAddModal] = useState<{
+    type: string;
+    title: string;
+    setter: React.Dispatch<React.SetStateAction<DropdownOption[]>>;
+    selectedSetter: (id: number) => void;
+  } | null>(null);
+
+  const handleQuickAddSave = async (name: string) => {
+    if (!quickAddModal) return;
+    const res = await fetch('http://localhost:3000/api/master-data-post', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: quickAddModal.type, name })
+    });
+    if (res.ok) {
+      const newRec = await res.json();
+      const newOpt = { id: newRec.id, name: newRec.name };
+      quickAddModal.setter(prev => [...prev, newOpt]);
+      quickAddModal.selectedSetter(newRec.id);
+      setQuickAddModal(null);
+    } else {
+      const err = await res.json();
+      alert('Failed: ' + (err.error || 'Could not save option'));
+    }
+  };
+
   useEffect(() => {
     fetchMasterData();
     fetchCustomers();
@@ -399,13 +426,17 @@ const CustomerManagement: React.FC = () => {
     { 
       headerName: 'Live Balance', 
       field: 'liveBalance', 
-      width: 150, 
+      width: 260, 
       cellStyle: (params: any) => {
         if (params.value > 0) return { color: '#ef4444', fontWeight: 'bold' };
-        if (params.value < 0) return { color: '#22c55e', fontWeight: 'bold' };
+        if (params.value < 0) return { color: '#d97706', fontWeight: 'bold' };
         return null;
       },
-      cellRenderer: (params: any) => `Rs. ${(params.value || 0).toLocaleString()}` 
+      cellRenderer: (params: any) => {
+        const val = params.value || 0;
+        if (val < 0) return `Payable to Customer (Overpaid): Rs. ${Math.abs(val).toLocaleString()}`;
+        return `Rs. ${val.toLocaleString()}`;
+      } 
     }
   ];
 
@@ -515,42 +546,97 @@ const CustomerManagement: React.FC = () => {
 
               <div style={{ marginBottom: '6px' }}>
                 <label className="pos-label">Zone</label>
-                <select className="pos-input" value={zoneId} onChange={e => setZoneId(e.target.value === '' ? '' : parseInt(e.target.value))} disabled={mode === 'VIEW' || mode === 'DISABLED'}>
-                  <option value="">-- Select Zone --</option>
-                  {zones.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="flex gap-2 items-center w-full">
+                  <select className="pos-input flex-1" value={zoneId} onChange={e => setZoneId(e.target.value === '' ? '' : parseInt(e.target.value))} disabled={mode === 'VIEW' || mode === 'DISABLED'}>
+                    <option value="">-- Select Zone --</option>
+                    {zones.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button 
+                    type="button" 
+                    onClick={() => setQuickAddModal({ type: 'zone', title: 'Zone', setter: setZones, selectedSetter: (id) => setZoneId(id) })} 
+                    className="bg-[#0088cc] hover:bg-[#0077b5] text-white p-2 rounded-md transition-colors w-10 h-10 flex items-center justify-center font-bold text-lg flex-shrink-0"
+                    disabled={mode === 'VIEW' || mode === 'DISABLED'}
+                    title="Add New Zone"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
 
               <div style={{ marginBottom: '6px' }}>
                 <label className="pos-label">Area Record</label>
-                <select className="pos-input" value={areaRecordId} onChange={e => setAreaRecordId(e.target.value === '' ? '' : parseInt(e.target.value))} disabled={mode === 'VIEW' || mode === 'DISABLED'}>
-                  <option value="">-- Select Area --</option>
-                  {areaRecords.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="flex gap-2 items-center w-full">
+                  <select className="pos-input flex-1" value={areaRecordId} onChange={e => setAreaRecordId(e.target.value === '' ? '' : parseInt(e.target.value))} disabled={mode === 'VIEW' || mode === 'DISABLED'}>
+                    <option value="">-- Select Area --</option>
+                    {areaRecords.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button 
+                    type="button" 
+                    onClick={() => setQuickAddModal({ type: 'areaRecord', title: 'Area Record', setter: setAreaRecords, selectedSetter: (id) => setAreaRecordId(id) })} 
+                    className="bg-[#0088cc] hover:bg-[#0077b5] text-white p-2 rounded-md transition-colors w-10 h-10 flex items-center justify-center font-bold text-lg flex-shrink-0"
+                    disabled={mode === 'VIEW' || mode === 'DISABLED'}
+                    title="Add New Area"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
 
               <div style={{ marginBottom: '6px' }}>
                 <label className="pos-label">Route</label>
-                <select className="pos-input" value={routeId} onChange={e => setRouteId(e.target.value === '' ? '' : parseInt(e.target.value))} disabled={mode === 'VIEW' || mode === 'DISABLED'}>
-                  <option value="">-- Select Route --</option>
-                  {routes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="flex gap-2 items-center w-full">
+                  <select className="pos-input flex-1" value={routeId} onChange={e => setRouteId(e.target.value === '' ? '' : parseInt(e.target.value))} disabled={mode === 'VIEW' || mode === 'DISABLED'}>
+                    <option value="">-- Select Route --</option>
+                    {routes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button 
+                    type="button" 
+                    onClick={() => setQuickAddModal({ type: 'route', title: 'Route', setter: setRoutes, selectedSetter: (id) => setRouteId(id) })} 
+                    className="bg-[#0088cc] hover:bg-[#0077b5] text-white p-2 rounded-md transition-colors w-10 h-10 flex items-center justify-center font-bold text-lg flex-shrink-0"
+                    disabled={mode === 'VIEW' || mode === 'DISABLED'}
+                    title="Add New Route"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
 
               <div style={{ marginBottom: '6px' }}>
                 <label className="pos-label">Load Type</label>
-                <select className="pos-input" value={loadTypeId} onChange={e => setLoadTypeId(e.target.value === '' ? '' : parseInt(e.target.value))} disabled={mode === 'VIEW' || mode === 'DISABLED'}>
-                  <option value="">-- Select Load Type --</option>
-                  {loadTypes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="flex gap-2 items-center w-full">
+                  <select className="pos-input flex-1" value={loadTypeId} onChange={e => setLoadTypeId(e.target.value === '' ? '' : parseInt(e.target.value))} disabled={mode === 'VIEW' || mode === 'DISABLED'}>
+                    <option value="">-- Select Load Type --</option>
+                    {loadTypes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button 
+                    type="button" 
+                    onClick={() => setQuickAddModal({ type: 'loadType', title: 'Load Type', setter: setLoadTypes, selectedSetter: (id) => setLoadTypeId(id) })} 
+                    className="bg-[#0088cc] hover:bg-[#0077b5] text-white p-2 rounded-md transition-colors w-10 h-10 flex items-center justify-center font-bold text-lg flex-shrink-0"
+                    disabled={mode === 'VIEW' || mode === 'DISABLED'}
+                    title="Add New Load Type"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
 
               <div style={{ marginBottom: '6px' }}>
                 <label className="pos-label">Van Record</label>
-                <select className="pos-input" value={vanRecId} onChange={e => setVanRecId(e.target.value === '' ? '' : parseInt(e.target.value))} disabled={mode === 'VIEW' || mode === 'DISABLED'}>
-                  <option value="">-- Select Van --</option>
-                  {vanRecs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="flex gap-2 items-center w-full">
+                  <select className="pos-input flex-1" value={vanRecId} onChange={e => setVanRecId(e.target.value === '' ? '' : parseInt(e.target.value))} disabled={mode === 'VIEW' || mode === 'DISABLED'}>
+                    <option value="">-- Select Van --</option>
+                    {vanRecs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button 
+                    type="button" 
+                    onClick={() => setQuickAddModal({ type: 'vanRec', title: 'Van Record', setter: setVanRecs, selectedSetter: (id) => setVanRecId(id) })} 
+                    className="bg-[#0088cc] hover:bg-[#0077b5] text-white p-2 rounded-md transition-colors w-10 h-10 flex items-center justify-center font-bold text-lg flex-shrink-0"
+                    disabled={mode === 'VIEW' || mode === 'DISABLED'}
+                    title="Add New Van Record"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
 
               <div style={{ marginBottom: '12px', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '6px' }}>
@@ -676,6 +762,62 @@ const CustomerManagement: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Quick Add Modal Popup */}
+      {quickAddModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: '#ffffff', borderRadius: '12px', width: '380px', padding: '20px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)', border: '1px solid #e2e8f0'
+          }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginBottom: '12px' }}>
+              Add New {quickAddModal.title}
+            </h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const inputEl = e.currentTarget.elements.namedItem('quickAddInput') as HTMLInputElement;
+              if (inputEl && inputEl.value.trim()) {
+                handleQuickAddSave(inputEl.value.trim());
+              }
+            }}>
+              <input
+                type="text"
+                name="quickAddInput"
+                autoFocus
+                placeholder={`Enter new ${quickAddModal.title} name...`}
+                style={{
+                  width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1',
+                  fontSize: '14px', marginBottom: '16px', outline: 'none'
+                }}
+              />
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setQuickAddModal(null)}
+                  style={{
+                    padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1',
+                    background: '#f8fafc', color: '#475569', fontWeight: 600, fontSize: '13px', cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '8px 16px', borderRadius: '6px', border: 'none',
+                    background: '#0088cc', color: '#ffffff', fontWeight: 700, fontSize: '13px', cursor: 'pointer'
+                  }}
+                >
+                  Save Option
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

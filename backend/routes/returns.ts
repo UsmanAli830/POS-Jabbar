@@ -154,7 +154,7 @@ router.post('/sales', async (req, res) => {
 
       const returnRef = `RET-${rtnMain.id}`;
 
-      // 2. Original Invoice Update (Fix 1)
+      // 2. Original Invoice Update (In-Place Modifications)
       if (saleMainId) {
         const targetSaleId = Number(saleMainId);
         const originalSale = await tx.saleMain.findUnique({
@@ -165,30 +165,45 @@ router.post('/sales', async (req, res) => {
         if (originalSale) {
           for (const item of items) {
             const returnedQty = Math.abs(Number(item.qty));
-            const prodId = Number(item.productRecId);
+            const prodId = Number(item.productRecId || item.productId);
             const matchingDtl = originalSale.details.find(d => d.productRecId === prodId);
             if (matchingDtl) {
               const newQty = Math.max(0, matchingDtl.qty - returnedQty);
               const newGross = newQty * matchingDtl.price;
-              const lineRefund = calculateItemNet(item);
-              const newNet = Math.max(0, matchingDtl.netAmount - lineRefund);
+              const discPct = Number(matchingDtl.discPercent || 0);
+              const cashDisc = Number(matchingDtl.cashDiscount || 0);
+              const lineDisc = (newGross * (discPct / 100)) + (newQty > 0 ? cashDisc : 0);
+              const newNet = Math.max(0, newGross - lineDisc);
 
-              await tx.saleInvDtl.update({
-                where: { id: matchingDtl.id },
-                data: {
-                  qty: newQty,
-                  grossAmount: newGross,
-                  netAmount: newNet
-                }
-              });
+              if (newQty === 0) {
+                await tx.saleInvDtl.delete({ where: { id: matchingDtl.id } });
+              } else {
+                await tx.saleInvDtl.update({
+                  where: { id: matchingDtl.id },
+                  data: {
+                    qty: newQty,
+                    grossAmount: newGross,
+                    netAmount: newNet
+                  }
+                });
+              }
             }
           }
+
+          // Recalculate invoice totals from remaining line items
+          const remainingDetails = await tx.saleInvDtl.findMany({ where: { saleMainId: targetSaleId } });
+          const newGrossSum = remainingDetails.reduce((sum, d) => sum + (d.grossAmount || (d.qty * d.price)), 0);
+          const newNetSum = remainingDetails.reduce((sum, d) => sum + (d.netAmount || (d.qty * d.price)), 0);
+          const newDiscountSum = Math.max(0, newGrossSum - newNetSum);
 
           await tx.saleMain.update({
             where: { id: targetSaleId },
             data: {
-              totalAmount: Math.max(0, originalSale.totalAmount - totalRefundAmount),
-              returnAmount: (originalSale.returnAmount || 0) + totalRefundAmount
+              grossAmount: newGrossSum,
+              discountAmount: newDiscountSum,
+              totalAmount: newNetSum,
+              returnAmount: (originalSale.returnAmount || 0) + totalRefundAmount,
+              updatedAt: new Date()
             }
           });
         }

@@ -5,86 +5,12 @@ import { getTenantFilter, getTenantCompanyId } from '../middleware/auth';
 const router = Router();
 const prisma = new PrismaClient();
 
-// Helper to seed 5 sample promotions if database is empty
-async function seedPromotionsIfEmpty() {
-  const count = await prisma.tradeOffer.count();
-  if (count === 0) {
-    const now = new Date();
-    const nextYear = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
-
-    const firstCat = await prisma.pCat.findFirst();
-    const firstProd = await prisma.productRec.findFirst();
-
-    await prisma.tradeOffer.createMany({
-      data: [
-        {
-          offerName: 'Eid Special 10% Off',
-          offerType: 'PERCENTAGE_DISCOUNT',
-          targetType: 'ALL_PRODUCTS',
-          targetId: null,
-          conditionValue: 1,
-          rewardValue: 10,
-          isActive: true,
-          startDate: now,
-          endDate: nextYear
-        },
-        {
-          offerName: 'Bulk Buy Savings (Rs. 100 Off)',
-          offerType: 'CASH_DISCOUNT',
-          targetType: 'ALL_PRODUCTS',
-          targetId: null,
-          conditionValue: 5,
-          rewardValue: 100,
-          isActive: true,
-          startDate: now,
-          endDate: nextYear
-        },
-        {
-          offerName: 'Category Mega Deal 15%',
-          offerType: 'PERCENTAGE_DISCOUNT',
-          targetType: 'CATEGORY',
-          targetId: firstCat?.id || 1,
-          conditionValue: 1,
-          rewardValue: 15,
-          isActive: true,
-          startDate: now,
-          endDate: nextYear
-        },
-        {
-          offerName: 'Buy 3 Get 1 Free',
-          offerType: 'BUY_X_GET_Y',
-          targetType: firstProd ? 'PRODUCT' : 'ALL_PRODUCTS',
-          targetId: firstProd?.id || null,
-          conditionValue: 3,
-          rewardValue: 1,
-          isActive: true,
-          startDate: now,
-          endDate: nextYear
-        },
-        {
-          offerName: 'Summer Cash Discount (Rs. 50)',
-          offerType: 'CASH_DISCOUNT',
-          targetType: 'ALL_PRODUCTS',
-          targetId: null,
-          conditionValue: 1,
-          rewardValue: 50,
-          isActive: true,
-          startDate: now,
-          endDate: nextYear
-        }
-      ]
-    });
-  }
-}
-
 // GET /api/promotions/check — Real-time promo check for POS Register
 router.get('/check', async (req, res) => {
   try {
     const productId = req.query.productId ? Number(req.query.productId) : null;
     const categoryId = req.query.categoryId ? Number(req.query.categoryId) : null;
     const qty = req.query.qty ? Number(req.query.qty) : 1;
-
-    await seedPromotionsIfEmpty();
 
     const now = new Date();
     const activeOffers = await prisma.tradeOffer.findMany({
@@ -156,8 +82,6 @@ router.get('/check', async (req, res) => {
 // GET all trade offers
 router.get('/', async (req, res) => {
   try {
-    await seedPromotionsIfEmpty();
-
     const offers = await prisma.tradeOffer.findMany({
       orderBy: { id: 'desc' }
     });
@@ -210,6 +134,23 @@ router.post('/', async (req, res) => {
         endDate: endDate ? new Date(endDate) : new Date(Date.now() + 365 * 86400000)
       }
     });
+
+    // Also sync to DiscountScheme for POS engine compatibility
+    try {
+      await prisma.discountScheme.create({
+        data: {
+          id: offer.id,
+          schemeName: offerName,
+          targetType: targetType || 'GLOBAL',
+          targetId: targetId ? Number(targetId) : null,
+          rulePayload: JSON.stringify({ offerType, conditionValue, rewardValue }),
+          isActive: Boolean(isActive)
+        }
+      });
+    } catch (e) {
+      // Ignore id collision if auto-increment is used
+    }
+
     res.status(201).json(offer);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -220,9 +161,11 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const offerId = Number(id);
     const { offerName, offerType, targetType, targetId, conditionValue, rewardValue, isActive, startDate, endDate } = req.body;
+    
     const offer = await prisma.tradeOffer.update({
-      where: { id: Number(id) },
+      where: { id: offerId },
       data: {
         offerName,
         offerType,
@@ -235,17 +178,38 @@ router.put('/:id', async (req, res) => {
         endDate: endDate ? new Date(endDate) : new Date(Date.now() + 365 * 86400000)
       }
     });
+
+    // Also update DiscountScheme if exists
+    try {
+      await prisma.discountScheme.updateMany({
+        where: { id: offerId },
+        data: {
+          schemeName: offerName,
+          targetType: targetType || 'GLOBAL',
+          targetId: targetId ? Number(targetId) : null,
+          rulePayload: JSON.stringify({ offerType, conditionValue, rewardValue }),
+          isActive: Boolean(isActive)
+        }
+      });
+    } catch (e) {
+      // Ignore
+    }
+
     res.json(offer);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// DELETE trade offer
+// DELETE trade offer & discount scheme
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.tradeOffer.delete({ where: { id: Number(req.params.id) } });
-    res.json({ success: true });
+    const id = Number(req.params.id);
+    
+    await prisma.tradeOffer.deleteMany({ where: { id } });
+    await prisma.discountScheme.deleteMany({ where: { id } });
+
+    res.json({ success: true, message: 'Promotion deleted successfully' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

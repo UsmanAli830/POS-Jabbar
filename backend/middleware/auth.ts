@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-12345';
+const JWT_SECRET = process.env.JWT_SECRET || 'pos_secret_key_2024';
 
 export interface AuthenticatedRequest extends Request {
   user?: {

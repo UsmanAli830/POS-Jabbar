@@ -93,6 +93,7 @@ const POSRegister: React.FC = () => {
   const [employees, setEmployees] = useState<any[]>([]);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [heldTickets, setHeldTickets] = useState<{ id: string; date: string; cart: CartItem[]; customerId: number | '' }[]>([]);
+  const [isInvoiceLocked, setIsInvoiceLocked] = useState<boolean>(false);
 
   // Combobox / Autocomplete state for detail grid
   const [activeAutocompleteRow, setActiveAutocompleteRow] = useState<number | 'NEW' | null>(null);
@@ -1069,7 +1070,15 @@ const POSRegister: React.FC = () => {
                 <select
                   value={customerId}
                   onChange={e => setCustomerId(e.target.value === '' ? '' : Number(e.target.value))}
-                  style={{ width: '100%', height: '26px', padding: '2px 4px', fontSize: '11px', fontWeight: 600, border: '1px solid #cbd5e1', borderRadius: '3px', outline: 'none' }}
+                  disabled={isInvoiceLocked}
+                  style={{ 
+                    width: '100%', height: '26px', padding: '2px 4px', fontSize: '11px', fontWeight: 600, 
+                    border: '1px solid #cbd5e1', borderRadius: '3px', outline: 'none',
+                    background: isInvoiceLocked ? '#e2e8f0' : '#ffffff',
+                    color: isInvoiceLocked ? '#64748b' : '#0f172a',
+                    cursor: isInvoiceLocked ? 'not-allowed' : 'default'
+                  }}
+                  title={isInvoiceLocked ? "Customer selector locked for loaded invoice" : "Select customer"}
                 >
                   <option value="">Walk-in Customer</option>
                   {customers.map(c => (

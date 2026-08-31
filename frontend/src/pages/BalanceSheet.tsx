@@ -88,7 +88,7 @@ const BalanceSheet: React.FC = () => {
   };
 
   const assets = data?.assets || { cashAndBank: 0, accountsReceivable: 0, inventoryValuation: 0, fixedAssets: 0, totalAssets: 0 };
-  const liabilities = data?.liabilities || { accountsPayable: 0, otherLiabilities: 0, totalLiabilities: 0 };
+  const liabilities = data?.liabilities || { accountsPayable: 0, customerOverpayments: 0, otherLiabilities: 0, totalLiabilities: 0 };
   const equity = data?.equity || { ownerCapital: 0, retainedEarnings: 0, totalEquity: 0 };
   const totalLiabilitiesAndEquity = data?.totalLiabilitiesAndEquity || 0;
   const isBalanced = data?.isBalanced ?? true;
@@ -566,6 +566,10 @@ const BalanceSheet: React.FC = () => {
                     </tr>
                   )}
 
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '8px 12px', fontWeight: 600, color: '#dc2626' }}>Customer Credit Balances (Overpayments)</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>{formatPKR(liabilities.customerOverpayments || 0)}</td>
+                  </tr>
                   <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
                     <td style={{ padding: '8px 12px', fontWeight: 600 }}>Other Payables & Liabilities</td>
                     <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{formatPKR(liabilities.otherLiabilities)}</td>

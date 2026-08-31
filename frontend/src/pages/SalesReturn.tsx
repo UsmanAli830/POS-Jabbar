@@ -47,7 +47,8 @@ function calculateLineNet(qty: number, price: number, discPercent: number, cashD
 }
 
 const SalesReturn: React.FC = () => {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const canEditBills = user?.isAdmin || user?.role === 'ADMIN' || user?.username === 'admin' || hasPermission('allow-bill-editing') || hasPermission('sales-return');
   const { settings } = useSettings();
   const navigate = useNavigate();
 
@@ -389,7 +390,16 @@ const SalesReturn: React.FC = () => {
           <select
             value={customerId}
             onChange={e => setCustomerId(e.target.value === '' ? '' : Number(e.target.value))}
-            style={{ height: '26px', padding: '2px 6px', fontSize: '11px', fontWeight: 600, border: '1px solid #475569', borderRadius: '3px', outline: 'none', background: '#ffffff', color: '#0f172a', maxWidth: '200px' }}
+            disabled={!!selectedInvoice}
+            style={{ 
+              height: '26px', padding: '2px 6px', fontSize: '11px', fontWeight: 600, 
+              border: '1px solid #475569', borderRadius: '3px', outline: 'none', 
+              background: selectedInvoice ? '#e2e8f0' : '#ffffff', 
+              color: selectedInvoice ? '#64748b' : '#0f172a', 
+              cursor: selectedInvoice ? 'not-allowed' : 'default',
+              maxWidth: '200px' 
+            }}
+            title={selectedInvoice ? "Customer locked for loaded invoice" : "Select customer"}
           >
             <option value="">-- Walk-in / Select Customer --</option>
             {customers.map(c => (
@@ -743,25 +753,32 @@ const SalesReturn: React.FC = () => {
 
             </div>
 
-            {/* PROCESS RETURN RED BUTTON */}
+            {/* PROCESS RETURN RED BUTTON & CONVERT TO NEW SALE */}
             <div style={{ padding: '8px', background: '#ffffff', borderTop: '1px solid #cbd5e1' }}>
               {(() => {
-                const canProcess = returnItems.some(i => i.qty > 0) && totalRefundAmount > 0;
+                const canProcess = returnItems.some(i => i.qty > 0) && totalRefundAmount > 0 && canEditBills;
                 return (
-                  <button
-                    onClick={handleProcessReturn}
-                    disabled={isProcessing || !canProcess}
-                    style={{
-                      width: '100%', padding: '10px', fontSize: '13px', fontWeight: 900,
-                      background: !canProcess || isProcessing ? '#cbd5e1' : '#dc2626',
-                      color: '#ffffff', border: 'none', borderRadius: '4px',
-                      cursor: !canProcess || isProcessing ? 'not-allowed' : 'pointer',
-                      display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px',
-                      boxShadow: !canProcess ? 'none' : '0 4px 10px rgba(220, 38, 38, 0.4)'
-                    }}
-                  >
-                    <RotateCcw size={16} /> {isProcessing ? 'Processing Return...' : 'PROCESS RETURN'}
-                  </button>
+                  <div>
+                    {!canEditBills && (
+                      <div style={{ fontSize: '10px', color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', padding: '6px', borderRadius: '3px', textAlign: 'center', marginBottom: '6px', fontWeight: 700 }}>
+                        🔒 Read-Only Access: "Allow Bill Editing / Update" Permission Required
+                      </div>
+                    )}
+                    <button
+                      onClick={handleProcessReturn}
+                      disabled={isProcessing || !canProcess}
+                      style={{
+                        width: '100%', padding: '10px', fontSize: '13px', fontWeight: 900,
+                        background: !canProcess || isProcessing ? '#cbd5e1' : '#dc2626',
+                        color: '#ffffff', border: 'none', borderRadius: '4px',
+                        cursor: !canProcess || isProcessing ? 'not-allowed' : 'pointer',
+                        display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px',
+                        boxShadow: !canProcess ? 'none' : '0 4px 10px rgba(220, 38, 38, 0.4)'
+                      }}
+                    >
+                      <RotateCcw size={16} /> {isProcessing ? 'Processing Return...' : 'PROCESS RETURN & EDIT INVOICE'}
+                    </button>
+                  </div>
                 );
               })()}
 

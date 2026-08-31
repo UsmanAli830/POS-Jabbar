@@ -7,13 +7,20 @@ beforeAll(async () => {
   await prisma.cashFlowDTL.deleteMany({});
   await prisma.cashFlowMAIN.deleteMany({});
   await prisma.recovery.deleteMany({});
+  await prisma.manualSaleRtnDtl.deleteMany({});
+  await prisma.manualSaleRtnMain.deleteMany({});
+  await prisma.purRtnDtl.deleteMany({});
+  await prisma.purRtnMain.deleteMany({});
   await prisma.saleInvDtl.deleteMany({});
+  await prisma.purDtl.deleteMany({});
+  await prisma.damagedStock.deleteMany({});
   await prisma.saleMain.deleteMany({});
+  await prisma.purMain.deleteMany({});
   await prisma.productRec.deleteMany({});
-  await prisma.pCat.deleteMany({});
   await prisma.customerRec.deleteMany({});
+  await prisma.sellerRec.deleteMany({});
   await prisma.finHead.deleteMany({});
-  await prisma.finHeadMainGroup.deleteMany({});
+  await prisma.pCat.deleteMany({});
 });
 
 afterAll(async () => {

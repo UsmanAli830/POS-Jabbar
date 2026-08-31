@@ -266,8 +266,20 @@ const PurchaseReceipt: React.FC<{ d: ReceiptData }> = ({ d }) => (
     </table>
     <div style={s.sep} />
     <div style={s.grandTotal}><span>Total Order Value</span><span>{fmt(d.netPayable || d.grossAmount)}</span></div>
-    {d.remainingBalance !== undefined && (
+    {d.amountPaid !== undefined && (
       <div style={s.totalRow}>
+        <span style={s.totalLabel}>Cash Paid to Vendor</span>
+        <span style={{ ...s.totalValue, color: '#16a34a' }}>{fmt(d.amountPaid)}</span>
+      </div>
+    )}
+    {d.balanceDue !== undefined && (
+      <div style={s.totalRow}>
+        <span style={s.totalLabel}>Adjusted in Vendor Balance</span>
+        <span style={{ ...s.totalValue, color: '#dc2626' }}>{fmt(d.balanceDue)}</span>
+      </div>
+    )}
+    {d.remainingBalance !== undefined && (
+      <div style={{ ...s.totalRow, borderTop: '1.5px dashed #475569', marginTop: '6px', paddingTop: '6px' }}>
         <span style={{ ...s.totalLabel, fontWeight: 700 }}>Vendor Live Outstanding Payable</span>
         <span style={{ ...s.totalValue, fontWeight: 800, fontSize: '13px' }}>{fmt(d.remainingBalance)}</span>
       </div>

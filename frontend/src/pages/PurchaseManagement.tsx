@@ -87,6 +87,13 @@ const PurchaseManagement: React.FC = () => {
     setCart(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Settlement state
+  const [cashPaid, setCashPaid] = useState<string>('0');
+
+  const total = cart.reduce((acc, item) => acc + (item.quantity * item.costPrice), 0);
+  const cashPaidVal = Math.min(total, Math.max(0, parseFloat(cashPaid) || 0));
+  const adjustedInBalance = Math.max(0, total - cashPaidVal);
+
   const handleSavePurchase = async () => {
     if (!vendorId || cart.length === 0) {
       alert('Vendor and items are required');
@@ -98,6 +105,7 @@ const PurchaseManagement: React.FC = () => {
         vendorId,
         locationId: vendorLocationId || undefined,
         invoiceNumber,
+        cashPaid: cashPaidVal,
         items: cart
       };
 
@@ -121,7 +129,9 @@ const PurchaseManagement: React.FC = () => {
             date: new Date().toISOString(),
             vendorName: selectedVendor?.companyName || 'Vendor',
             invoiceNo: invoiceNumber || `PUR-${data.id || Date.now()}`,
-            paymentMode: 'On Account / Credit',
+            paymentMode: cashPaidVal > 0 && adjustedInBalance > 0 
+              ? 'Split (Cash + Credit)' 
+              : (cashPaidVal > 0 ? 'Cash Payment' : 'On Account / Credit'),
             items: cart.map((c, i) => ({
               sr: i + 1,
               name: c.productName,
@@ -132,11 +142,15 @@ const PurchaseManagement: React.FC = () => {
             grossAmount: total,
             totalDiscount: 0,
             netPayable: total,
+            amountPaid: cashPaidVal,
+            balanceDue: adjustedInBalance,
+            remainingBalance: data.vendorBalance !== undefined ? data.vendorBalance : undefined
           }
         });
         setCart([]);
         setVendorId('');
         setInvoiceNumber('');
+        setCashPaid('0');
         await refreshInventory(); // Global synchronization
       } else {
         const err = await res.json();
@@ -146,8 +160,6 @@ const PurchaseManagement: React.FC = () => {
       alert('Network error');
     }
   };
-
-  const total = cart.reduce((acc, item) => acc + (item.quantity * item.costPrice), 0);
 
   return (
     <div className="page-wrapper" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -163,7 +175,7 @@ const PurchaseManagement: React.FC = () => {
           <div className="desktop-section-title">Purchase Details</div>
           
           <div className="form-group" style={{ marginBottom: '16px' }}>
-            <label className="form-label">Select Vendor</label>
+            <label className="form-label">Select Vendor *</label>
             <select className="form-select" value={vendorId} onChange={e => setVendorId(e.target.value === '' ? '' : parseInt(e.target.value))}>
               <option value="">-- Vendor --</option>
               {vendors.map(v => <option key={v.id} value={v.id}>{v.companyName}</option>)}
@@ -250,13 +262,66 @@ const PurchaseManagement: React.FC = () => {
             </table>
           </div>
 
-          <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: '#e2e8f0', border: '1px solid #cbd5e1' }}>
-            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
-              Total: Rs. {total.toLocaleString()}
+          {/* Split Settlement Controls */}
+          <div style={{ marginTop: '16px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', alignItems: 'center' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                  Total Invoice Value
+                </label>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>
+                  Rs. {total.toLocaleString()}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#15803d', marginBottom: '4px', textTransform: 'uppercase' }}>
+                  Cash Paid to Vendor (Rs.)
+                </label>
+                <input 
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={total}
+                  value={cashPaid}
+                  onChange={e => setCashPaid(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '1.5px solid #16a34a',
+                    fontWeight: 700,
+                    fontSize: '15px',
+                    color: '#15803d',
+                    outline: 'none',
+                    background: '#f0fdf4'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#b91c1c', marginBottom: '4px', textTransform: 'uppercase' }}>
+                  Adjusted in Balance (Rs.)
+                </label>
+                <div style={{
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1.5px solid #ef4444',
+                  fontWeight: 800,
+                  fontSize: '15px',
+                  color: '#b91c1c',
+                  background: '#fef2f2'
+                }}>
+                  Rs. {adjustedInBalance.toLocaleString()}
+                </div>
+              </div>
             </div>
-            <button className="btn btn-primary" onClick={handleSavePurchase}>
-              <Save size={16} /> Complete Purchase
-            </button>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+              <button className="btn btn-primary" onClick={handleSavePurchase} disabled={cart.length === 0 || !vendorId} style={{ padding: '10px 24px', fontSize: '14px', fontWeight: 800 }}>
+                <Save size={16} /> Complete Purchase &amp; Print Receipt
+              </button>
+            </div>
           </div>
 
         </div>

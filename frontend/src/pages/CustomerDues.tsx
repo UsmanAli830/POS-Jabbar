@@ -252,13 +252,13 @@ const CustomerDues: React.FC = () => {
         </form>
 
         {/* LIVE OUTSTANDING BALANCE DISPLAY BADGE */}
-        <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
-          <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Live Outstanding Dues
+        <div style={{ background: (liveBalance || 0) < 0 ? '#fffbebf0' : '#f8fafc', border: (liveBalance || 0) < 0 ? '1px solid #f59e0b' : '1px solid #cbd5e1', borderRadius: '4px', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: (liveBalance || 0) < 0 ? '#b45309' : '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            {(liveBalance || 0) < 0 ? 'Payable to Customer (Overpaid)' : 'Live Outstanding Dues'}
           </span>
           
-          <div style={{ fontSize: '26px', fontWeight: 900, color: (liveBalance || 0) > 0 ? '#dc2626' : '#16a34a', margin: '8px 0' }}>
-            {liveBalance !== null ? `Rs. ${liveBalance.toLocaleString()}` : 'Select Customer'}
+          <div style={{ fontSize: (liveBalance || 0) < 0 ? '18px' : '26px', fontWeight: 900, color: (liveBalance || 0) < 0 ? '#d97706' : ((liveBalance || 0) > 0 ? '#dc2626' : '#16a34a'), margin: '8px 0' }}>
+            {liveBalance !== null ? ((liveBalance || 0) < 0 ? `Payable to Customer (Overpaid): Rs. ${Math.abs(liveBalance).toLocaleString()}` : `Rs. ${liveBalance.toLocaleString()}`) : 'Select Customer'}
           </div>
 
           {selectedCustomer && (

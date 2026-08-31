@@ -6,7 +6,7 @@ import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-12345';
+const JWT_SECRET = process.env.JWT_SECRET || 'pos_secret_key_2024';
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {

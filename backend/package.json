@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npx cross-env DATABASE_URL=file:./test.db npx prisma db push --skip-generate && npx cross-env DATABASE_URL=file:./test.db jest",
+    "test": "npx tsc && npx cross-env DATABASE_URL=file:./test.db npx prisma db push --skip-generate && npx cross-env DATABASE_URL=file:./test.db jest --runInBand",
+    "build": "tsc",
     "dev": "nodemon index.ts",
     "seed": "ts-node prisma/seed.ts",
     "seed:demo": "ts-node prisma/seed_demo.ts"

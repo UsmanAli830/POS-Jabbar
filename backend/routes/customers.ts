@@ -5,6 +5,29 @@ import { getTenantFilter, getTenantCompanyId } from '../middleware/auth';
 const router = Router();
 const prisma = new PrismaClient();
 
+// GET next available customer code / ID
+router.get('/next-code', async (req, res) => {
+  try {
+    const tenantFilter = getTenantFilter(req);
+    const customers = await prisma.customerRec.findMany({
+      where: tenantFilter,
+      select: { id: true }
+    });
+
+    const existingCodes = customers
+      .map(c => Number(c.id))
+      .filter(c => !isNaN(c) && c > 0);
+
+    let nextCode = 1;
+    while (existingCodes.includes(nextCode)) {
+      nextCode++;
+    }
+    res.json({ nextCode: String(nextCode) });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch next customer code' });
+  }
+});
+
 // GET all customer records
 router.get('/', async (req, res) => {
   try {

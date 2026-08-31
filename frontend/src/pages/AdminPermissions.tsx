@@ -18,6 +18,7 @@ const MODULE_DEFINITIONS: ModuleDef[] = [
   { key: 'sales', name: 'Sales Invoicing & Orders', category: 'Sales', description: 'Comprehensive access to sales registers, order bookings, and invoices' },
   { key: 'bookings', name: 'Order Booking Sheet', category: 'Sales', description: 'Order taker booking sheet entry, salesman orders, and draft bills' },
   { key: 'sales-return', name: 'Sales Returns', category: 'Sales', description: 'Process customer returns, issue refunds, and adjust sales ledgers' },
+  { key: 'allow-bill-editing', name: 'Allow Bill Editing / Update', category: 'Sales', description: 'Grant permission to edit, update, and process returns on existing invoices' },
   { key: 'promotions', name: 'Promotions & Discounts', category: 'Sales', description: 'Configure promo rules, tiered pricing, and seasonal campaign discounts' },
 
   // Inventory

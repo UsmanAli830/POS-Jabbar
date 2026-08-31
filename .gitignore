@@ -39,3 +39,10 @@ Thumbs.db
 .idea/
 .agents/
 .gemini/
+
+# Test Reports & Traces
+**/playwright-report/
+**/test-results/
+
+# Compiled JS build artifacts
+backend/**/*.js

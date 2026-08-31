@@ -135,14 +135,17 @@ const PromotionsControl: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this promotion?')) return;
     try {
+      setOffers(prev => prev.filter(o => o.id !== id));
       const res = await fetch(`http://localhost:3000/api/promotions/${id}`, { method: 'DELETE' });
       if (res.ok) {
+        fetchOffers();
+      } else {
         fetchOffers();
       }
     } catch (e) {
       console.error(e);
+      fetchOffers();
     }
   };
 
