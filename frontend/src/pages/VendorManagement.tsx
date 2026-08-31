@@ -3,6 +3,7 @@ import { Save, Truck, Trash2, Edit3, Eye, X } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
+import { useAuth } from '../context/AuthContext';
 
 type SellerRec = {
   id: number;
@@ -20,6 +21,9 @@ type SellerRec = {
 type FormMode = 'DISABLED' | 'CREATE' | 'VIEW' | 'EDIT';
 
 const VendorManagement: React.FC = () => {
+  const { user, hasPermission } = useAuth();
+  const canEditVendor = Boolean(user?.isAdmin || user?.role === 'ADMIN' || user?.username === 'admin' || hasPermission('vendor:edit') || hasPermission('vendors'));
+
   const [vendors, setVendors] = useState<SellerRec[]>([]);
 
   // Form State
@@ -195,8 +199,9 @@ const VendorManagement: React.FC = () => {
           <button 
             className="btn btn-secondary" 
             onClick={handleBulkDelete}
-            disabled={selectedRows.length === 0}
-            style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px' }}
+            disabled={selectedRows.length === 0 || !canEditVendor}
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', opacity: canEditVendor && selectedRows.length > 0 ? 1 : 0.5 }}
+            title={canEditVendor ? 'Delete selected vendors' : 'Vendor updates disabled by administrator permissions'}
           >
             <Trash2 size={12} /> Bulk Delete
           </button>
@@ -229,9 +234,10 @@ const VendorManagement: React.FC = () => {
               </button>
               <button 
                 type="button"
-                disabled={!selectedVendorId}
+                disabled={!selectedVendorId || !canEditVendor}
                 onClick={() => setMode('EDIT')}
-                style={{ padding: '2px 6px', borderRadius: '3px', fontSize: '10px', background: mode === 'EDIT' ? 'var(--accent-primary)' : 'transparent', color: mode === 'EDIT' ? 'white' : 'inherit', border: 'none', cursor: selectedVendorId ? 'pointer' : 'not-allowed', opacity: selectedVendorId ? 1 : 0.5 }}
+                style={{ padding: '2px 6px', borderRadius: '3px', fontSize: '10px', background: mode === 'EDIT' ? 'var(--accent-primary)' : 'transparent', color: mode === 'EDIT' ? 'white' : 'inherit', border: 'none', cursor: canEditVendor && selectedVendorId ? 'pointer' : 'not-allowed', opacity: canEditVendor && selectedVendorId ? 1 : 0.5 }}
+                title={canEditVendor ? 'Edit Vendor' : 'Vendor editing disabled by administrator permissions'}
               >
                 <Edit3 size={12} />
               </button>

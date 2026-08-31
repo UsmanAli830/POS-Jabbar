@@ -1,6 +1,11 @@
 import React, { forwardRef } from 'react';
 
-export type ReceiptType = 'sale' | 'purchase' | 'sales-return' | 'purchase-return' | 'payment' | 'salary';
+export type HistoryLogItem = {
+  id?: number;
+  modifiedAt?: string | Date;
+  changeDetails?: string;
+  modifiedBy?: { id?: number; name?: string; username?: string };
+};
 
 export type ReceiptData = {
   id?: string | number;
@@ -9,6 +14,7 @@ export type ReceiptData = {
   storeAddress?: string;
   storePhone?: string;
   receiptFooter?: string;
+  historyLogs?: HistoryLogItem[];
 
   // Sale
   invoiceNumber?: string;
@@ -515,6 +521,28 @@ const ReceiptDocument = forwardRef<HTMLDivElement, ReceiptDocumentProps>(({ type
 
       {/* Body */}
       {renderBody()}
+
+      {/* Invoice Modification History (if available) */}
+      {data.historyLogs && data.historyLogs.length > 0 && (
+        <div style={{ marginTop: '16px', paddingTop: '10px', borderTop: '1.5px dashed #64748b' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>
+            📜 Invoice Modification History ({data.historyLogs.length} Edits)
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {data.historyLogs.map((log, idx) => (
+              <div key={log.id || idx} style={{ background: '#f8fafc', padding: '6px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#0284c7', marginBottom: '2px' }}>
+                  <span>Modified By: {log.modifiedBy?.name || log.modifiedBy?.username || 'Staff'}</span>
+                  <span>{log.modifiedAt ? new Date(log.modifiedAt).toLocaleString() : ''}</span>
+                </div>
+                <div style={{ color: '#334155', lineHeight: 1.3 }}>
+                  {log.changeDetails}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div style={s.footer}>

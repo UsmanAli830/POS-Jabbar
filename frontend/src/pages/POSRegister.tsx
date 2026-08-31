@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, X, User, Barcode, CheckCircle, RotateCcw, Pause, ChevronLeft, ChevronRight, History, ReceiptText } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, X, Save, User, Barcode, CheckCircle, RotateCcw, Pause, ChevronLeft, ChevronRight, History, ReceiptText } from 'lucide-react';
 import TimeclockModal from '../components/TimeclockModal';
 import Receipt from '../components/Receipt';
 import InvoiceDetailsModal from '../components/InvoiceDetailsModal';
@@ -40,7 +40,8 @@ type CartItem = Product & {
 };
 
 const POSRegister: React.FC = () => {
-  const { token, user } = useAuth();
+  const { token, user, hasPermission } = useAuth();
+  const canEditBills = Boolean(user?.isAdmin || user?.role === 'ADMIN' || user?.username === 'admin' || hasPermission('pos:edit') || hasPermission('allow-bill-editing'));
   // Master & Core State
   const [products, setProducts] = useState<Product[]>([]);
   const [productSearchQuery, setProductSearchQuery] = useState('');
@@ -94,6 +95,8 @@ const POSRegister: React.FC = () => {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [heldTickets, setHeldTickets] = useState<{ id: string; date: string; cart: CartItem[]; customerId: number | '' }[]>([]);
   const [isInvoiceLocked, setIsInvoiceLocked] = useState<boolean>(false);
+  const [editingSaleId, setEditingSaleId] = useState<number | null>(null);
+  const [historyLogs, setHistoryLogs] = useState<any[]>([]);
 
   // Combobox / Autocomplete state for detail grid
   const [activeAutocompleteRow, setActiveAutocompleteRow] = useState<number | 'NEW' | null>(null);
@@ -336,7 +339,6 @@ const POSRegister: React.FC = () => {
       setCustomerBalance(null);
     }
   };
-
   const fetchNextInvoiceNumber = async () => {
     try {
       const res = await fetch('http://localhost:3000/api/sales/next-invoice-number');
@@ -349,6 +351,124 @@ const POSRegister: React.FC = () => {
     } catch (e) {
       console.error('Failed to fetch next invoice number', e);
     }
+  };
+
+  const handleSearchInvoice = async (searchQuery?: string) => {
+    const q = (searchQuery !== undefined ? searchQuery : refNumber).trim();
+    if (!q) {
+      alert('Please enter an Invoice Number or Ref # to search.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`http://localhost:3000/api/sales/lookup?refNo=${encodeURIComponent(q)}`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+
+      if (res.ok) {
+        const sale = await res.json();
+        if (!sale) {
+          alert(`Invoice '${q}' returned empty data.`);
+          return;
+        }
+
+        setEditingSaleId(sale?.id || null);
+        setRefNumber(sale?.invoiceNumber || (sale?.id ? `INV-${sale.id}` : q));
+
+        // Customer Object & State Protection
+        if (sale?.customerRecId !== undefined && sale?.customerRecId !== null) {
+          setCustomerId(Number(sale.customerRecId));
+        } else if (sale?.customerRec?.id) {
+          setCustomerId(Number(sale.customerRec.id));
+        } else {
+          setCustomerId(''); // Walk-in customer
+        }
+
+        setIsInvoiceLocked(true);
+
+        if (sale?.date) {
+          try {
+            const dateObj = new Date(sale.date);
+            if (!isNaN(dateObj.getTime())) {
+              setSaleDate(dateObj.toISOString().split('T')[0]);
+            }
+          } catch (e) {
+            console.warn('Date parsing error', e);
+          }
+        }
+        if (sale?.booker) setBooker(String(sale.booker));
+
+        // Cart Items Mapping with Complete Null Safety & Default Fallbacks
+        const mappedCart: CartItem[] = (sale?.details || []).map((d: any) => {
+          const matchedProd = products.find(p => p.id === d?.productRecId);
+          const qty = Number(d?.qty || d?.quantity || 1);
+          const rate = Number(d?.price || d?.rate || matchedProd?.salePrice || 0);
+          const packSize = Number(matchedProd?.packSize || 1);
+          const totalQty = d?.totalQty !== undefined ? Number(d.totalQty) : (qty * packSize);
+          const discPct = Number(d?.discPercent || d?.discountPercent || 0);
+          const cashDisc = Number(d?.cashDiscount || d?.cashDisc || 0);
+          const grossAmount = Number(d?.grossAmount || (qty * rate));
+          let netAmount = Number(d?.netAmount || 0);
+          if (netAmount <= 0) {
+            netAmount = Math.max(0, grossAmount - (grossAmount * (discPct / 100)) - cashDisc);
+          }
+          const discountAmount = Math.max(0, grossAmount - netAmount);
+
+          return {
+            id: Number(d?.productRecId || matchedProd?.id || d?.id || 0),
+            productCode: String(d?.productCode || d?.productRec?.productCode || matchedProd?.productCode || ''),
+            barCode: String(d?.barCode || d?.productRec?.barCode || matchedProd?.barCode || ''),
+            productName: String(d?.productName || d?.productRec?.productName || matchedProd?.productName || ("Product #" + (d?.productRecId || d?.id || ''))),
+            salePrice: rate,
+            costPrice: Number(d?.productRec?.costPrice || matchedProd?.costPrice || 0),
+            packSize: packSize,
+            baseUom: String(matchedProd?.baseUom || 'Pcs'),
+            bulkUom: String(matchedProd?.bulkUom || 'Pack'),
+            currentStock: Number(matchedProd?.currentStock !== undefined ? matchedProd.currentStock : 9999),
+            cartQuantity: qty,
+            totalQty: totalQty,
+            rate: rate,
+            retailPrice: rate,
+            stockQuantity: Number(matchedProd?.currentStock !== undefined ? matchedProd.currentStock : 9999),
+            discountPercent: discPct,
+            cashDiscount: cashDisc,
+            grossAmount: grossAmount,
+            discountAmount: discountAmount,
+            netAmount: netAmount,
+            discountOrder: d?.discountOrder || null
+          };
+        });
+
+        setCart(mappedCart);
+        setHistoryLogs(Array.isArray(sale?.historyLogs) ? sale.historyLogs : []);
+        showScanToast(`Loaded Invoice ${sale?.invoiceNumber || q} (${mappedCart.length} items)`, 'success');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err?.error || `Invoice '${q}' not found.`);
+      }
+    } catch (e: any) {
+      console.error('Invoice Search Error:', e);
+      alert('Error searching invoice: ' + (e?.message || 'Failed to load invoice'));
+    }
+  };
+
+  const handleResetForm = () => {
+    setCart([]);
+    setSelectedCartRowIndex(null);
+    setSelectedLocationIds([]);
+    setEditingSaleId(null);
+    setIsInvoiceLocked(false);
+    setHistoryLogs([]);
+    setCustomerId('');
+    setBooker('');
+    setSaleDate('');
+    setRemarks('');
+    setLossPercent(0);
+    setCashDiscount('');
+    setDiscountOrder(null);
+    setExpense(0);
+    setPaymentReceived('');
+    fetchNextInvoiceNumber();
   };
 
   const fetchMasterData = async () => {
@@ -792,16 +912,25 @@ const POSRegister: React.FC = () => {
       return;
     }
 
+    if (editingSaleId && !canEditBills) {
+      alert('Access Denied: You do not have permission to edit existing bills ("Allow Bill Editing / Update" permission required).');
+      return;
+    }
+
     setIsCheckingOut(true);
     try {
       const payload = {
         items: cart.map(item => ({
           productId: item.id,
+          productRecId: item.id,
           productCode: item.productCode,
           productName: item.productName,
           quantity: item.cartQuantity,
+          qty: item.cartQuantity,
           unitPrice: item.rate,
+          price: item.rate,
           totalPrice: item.netAmount,
+          netAmount: item.netAmount,
           discountAmount: item.discountAmount,
           discPercent: item.discountPercent || 0,
           cashDiscount: item.cashDiscount || 0,
@@ -822,8 +951,14 @@ const POSRegister: React.FC = () => {
         refNumber
       };
 
-      const res = await fetch('http://localhost:3000/api/sales', {
-        method: 'POST',
+      const url = editingSaleId
+        ? `http://localhost:3000/api/sales/${editingSaleId}`
+        : 'http://localhost:3000/api/sales';
+
+      const method = editingSaleId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -833,6 +968,7 @@ const POSRegister: React.FC = () => {
 
       if (res.ok) {
         const saleData = await res.json();
+        const finalInvNumber = saleData.invoiceNumber || (saleData.id ? `INV-${saleData.id}` : refNumber);
         
         // Construct detailed metadata for Receipt Modal
         const selectedCust = customers.find(c => c.id === Number(customerId));
@@ -844,19 +980,19 @@ const POSRegister: React.FC = () => {
           .filter(l => selectedLocationIds.includes(l.id))
           .map(l => l.locationName);
 
-        // Auto-Popup Receipt Modal Phase 49
+        // Auto-Popup Receipt Modal with real database ID & history logs
         setReceiptModal({
           isOpen: true,
           type: 'sale',
           data: {
-            invoiceNumber: saleData.invoiceNumber || refNumber || `INV-${saleData.id}`,
+            invoiceNumber: finalInvNumber,
             date: new Date().toLocaleString(),
             customerName: custName,
             locations: locNames.length > 0 ? locNames : undefined,
             salesmanName: salesmanName || undefined,
             bookerName: booker || undefined,
             paymentMethod,
-            refNumber,
+            refNumber: finalInvNumber,
             items: cart.map((item, idx) => ({
               sr: idx + 1,
               name: item.productName,
@@ -869,26 +1005,20 @@ const POSRegister: React.FC = () => {
             grossAmount: grossTotal,
             totalDiscount: itemDiscountsTotal + (eligibleAmount - netValue),
             netPayable: totalAmount,
-            amountReceived: cashPaid,
+            amountReceived: Number(cashPaid) || totalAmount,
             changeReturn: changeDue > 0 ? changeDue : 0,
-            balanceDue: isCreditSale ? Math.max(0, totalAmount - cashPaid) : 0,
+            balanceDue: isCreditSale ? Math.max(0, totalAmount - (Number(cashPaid) || 0)) : 0,
             storeName: settings?.storeName || 'Ammad Sanitary',
             storeAddress: settings?.storeAddress || 'Main Wholesale Market, G.T. Road',
-            receiptFooter: settings?.receiptFooter || 'Thank you for your business! — Ammad Sanitary'
+            receiptFooter: settings?.receiptFooter || 'Thank you for your business! — Ammad Sanitary',
+            historyLogs: saleData.historyLogs || historyLogs
           }
         });
 
-        // Reset Cart & Form
-        setCart([]);
-        setSelectedCartRowIndex(null);
-        setSelectedLocationIds([]);
-        fetchNextInvoiceNumber();
-        setRemarks('');
-        setLossPercent(0);
-        setCashDiscount('');
-        setDiscountOrder(null);
-        setExpense(0);
-        setPaymentReceived('');
+        showScanToast(editingSaleId ? 'Invoice updated successfully.' : 'Sale completed successfully.', 'success');
+
+        // Reset Cart & Form state cleanly to fresh sale mode
+        handleResetForm();
 
         // Real-Time Customer Balance & Bottom History Refresh
         fetchCustomers();
@@ -1126,15 +1256,45 @@ const POSRegister: React.FC = () => {
                 />
               </div>
 
-              {/* Ref# */}
+              {/* Ref# with Search Lookup */}
               <div>
-                <label style={{ fontSize: '10px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '1px' }}>Ref #</label>
-                <input
-                  type="text"
-                  value={refNumber}
-                  onChange={e => setRefNumber(e.target.value)}
-                  style={{ width: '100%', height: '26px', padding: '2px 6px', fontSize: '11px', fontWeight: 600, border: '1px solid #cbd5e1', borderRadius: '3px', outline: 'none' }}
-                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1px' }}>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: '#334155' }}>Ref / Invoice #</label>
+                  {editingSaleId && (
+                    <span style={{ fontSize: '9px', fontWeight: 800, color: '#0284c7', background: '#e0f2fe', padding: '1px 4px', borderRadius: '3px' }}>
+                      EDIT MODE (INV-{editingSaleId})
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '2px' }}>
+                  <input
+                    type="text"
+                    value={refNumber}
+                    onChange={e => setRefNumber(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSearchInvoice();
+                      }
+                    }}
+                    placeholder="Search e.g. INV-346"
+                    style={{
+                      width: '100%', height: '26px', padding: '2px 6px', fontSize: '11px', fontWeight: 600,
+                      border: '1px solid #cbd5e1', borderRadius: '3px', outline: 'none'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleSearchInvoice()}
+                    title="Search Invoice by Ref #"
+                    style={{
+                      height: '26px', padding: '0 8px', background: '#0284c7', color: '#ffffff',
+                      border: 'none', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center'
+                    }}
+                  >
+                    <Search size={13} />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1677,37 +1837,89 @@ const POSRegister: React.FC = () => {
 
           {/* ACTION BUTTONS */}
           <div style={{ padding: '6px 8px', background: '#f1f5f9', borderTop: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <button
-              onClick={handleCompleteSale}
-              disabled={isCheckingOut || cart.length === 0}
-              className="bg-[#0088cc] hover:bg-[#0077b5] text-white font-bold py-2 px-4 rounded-md shadow-sm transition-all duration-150 flex items-center justify-center gap-2 text-xs w-full"
-              style={{
-                background: cart.length === 0 || isCheckingOut ? '#cbd5e1' : '#0088cc',
-                cursor: cart.length === 0 || isCheckingOut ? 'not-allowed' : 'pointer'
-              }}
-            >
-              <CheckCircle size={14} className="text-white" /> {isCheckingOut ? 'Processing...' : 'COMPLETE SALE (F10)'}
-            </button>
+            {editingSaleId ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <button
+                  onClick={handleCompleteSale}
+                  disabled={cart.length === 0 || isCheckingOut || !canEditBills}
+                  style={{
+                    background: cart.length === 0 || isCheckingOut || !canEditBills ? '#cbd5e1' : '#0284c7',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '12px',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    cursor: cart.length === 0 || isCheckingOut || !canEditBills ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  <Save size={16} />
+                  {isCheckingOut ? 'Saving Changes...' : 'SAVE INVOICE CHANGES'}
+                </button>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-              <button
-                onClick={holdTicket}
-                disabled={cart.length === 0}
-                className="bg-[#1e293b] hover:bg-[#334155] text-slate-200 font-semibold py-1.5 px-2 rounded-md transition-all duration-150 flex items-center justify-center gap-1.5 text-[11px]"
-                style={{ cursor: cart.length === 0 ? 'not-allowed' : 'pointer' }}
-              >
-                <Pause size={12} className="text-amber-400" /> Hold Invoice
-              </button>
+                <button
+                  onClick={() => {
+                    handleResetForm();
+                    showScanToast('Cancelled bill edit mode', 'error');
+                  }}
+                  style={{
+                    background: '#64748b',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '11px',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <X size={14} /> CANCEL EDIT
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={handleCompleteSale}
+                  disabled={isCheckingOut || cart.length === 0}
+                  className="bg-[#0088cc] hover:bg-[#0077b5] text-white font-bold py-2 px-4 rounded-md shadow-sm transition-all duration-150 flex items-center justify-center gap-2 text-xs w-full"
+                  style={{
+                    background: cart.length === 0 || isCheckingOut ? '#cbd5e1' : '#0088cc',
+                    cursor: cart.length === 0 || isCheckingOut ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <CheckCircle size={14} className="text-white" /> {isCheckingOut ? 'Processing...' : 'COMPLETE SALE'}
+                </button>
 
-              <button
-                onClick={() => setCart([])}
-                disabled={cart.length === 0}
-                className="bg-[#1e293b] hover:bg-[#334155] text-slate-200 font-semibold py-1.5 px-2 rounded-md transition-all duration-150 flex items-center justify-center gap-1.5 text-[11px]"
-                style={{ cursor: cart.length === 0 ? 'not-allowed' : 'pointer' }}
-              >
-                <RotateCcw size={12} className="text-rose-400" /> Clear Grid
-              </button>
-            </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                  <button
+                    onClick={holdTicket}
+                    disabled={cart.length === 0}
+                    className="bg-[#1e293b] hover:bg-[#334155] text-slate-200 font-semibold py-1.5 px-2 rounded-md transition-all duration-150 flex items-center justify-center gap-1.5 text-[11px]"
+                    style={{ cursor: cart.length === 0 ? 'not-allowed' : 'pointer' }}
+                  >
+                    <Pause size={12} className="text-amber-400" /> Hold Invoice
+                  </button>
+
+                  <button
+                    onClick={handleResetForm}
+                    disabled={cart.length === 0 && !editingSaleId}
+                    className="bg-[#1e293b] hover:bg-[#334155] text-slate-200 font-semibold py-1.5 px-2 rounded-md transition-all duration-150 flex items-center justify-center gap-1.5 text-[11px]"
+                    style={{ cursor: cart.length === 0 && !editingSaleId ? 'not-allowed' : 'pointer' }}
+                  >
+                    <RotateCcw size={12} className="text-rose-400" /> Clear Grid
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
 

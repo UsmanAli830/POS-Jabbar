@@ -1,24 +1,24 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticate, AuthenticatedRequest, getTenantFilter, getTenantCompanyId } from '../middleware/auth';
+import { authenticate, AuthenticatedRequest, getTenantFilter, getTenantCompanyId, requirePermission } from '../middleware/auth';
 
 // Phase 47: Sales route with multi-location support
 const router = Router();
 const prisma = new PrismaClient();
 
 // GET /api/sales/next-invoice-number
-router.get('/next-invoice-number', async (req, res) => {
+router.get('/next-invoice-number', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
-    const tenantFilter = getTenantFilter(req);
+    const tenantCompanyId = getTenantCompanyId(req);
     const lastSale = await prisma.saleMain.findFirst({
-      where: tenantFilter,
-      orderBy: { id: 'desc' },
-      select: { id: true }
+      where: tenantCompanyId ? { companyId: tenantCompanyId } : {},
+      orderBy: { invoiceNumber: 'desc' },
+      select: { invoiceNumber: true }
     });
-    const nextId = (lastSale?.id || 0) + 1;
+    const nextSeq = (lastSale && lastSale.invoiceNumber) ? lastSale.invoiceNumber + 1 : 1;
     res.json({
-      nextId,
-      nextInvoiceNumber: `INV-${nextId}`
+      nextId: nextSeq,
+      nextInvoiceNumber: `INV-${nextSeq}`
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -46,7 +46,11 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       refNumber
     } = req.body;
 
-    const salesmanId = req.user?.id;
+    let validSalesmanId: number | null = null;
+    if (req.user?.id) {
+      const empExists = await prisma.employeeRec.findUnique({ where: { id: req.user.id } });
+      if (empExists) validSalesmanId = req.user.id;
+    }
 
     let locIds: number[] = [];
     if (Array.isArray(locationIds)) {
@@ -132,6 +136,14 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       let createdSale;
 
       // 1. Create Sale Record
+      const tenantCompanyId = getTenantCompanyId(req);
+      const lastSale = await tx.saleMain.findFirst({
+        where: tenantCompanyId ? { companyId: tenantCompanyId } : {},
+        orderBy: { invoiceNumber: 'desc' },
+        select: { invoiceNumber: true }
+      });
+      const nextSeq = (lastSale && lastSale.invoiceNumber) ? lastSale.invoiceNumber + 1 : 1;
+
       if (vanRecId) {
         // Spot / Van Sale
         createdSale = await tx.spotSaleMain.create({
@@ -139,9 +151,9 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
             customerRecId: customerId ? Number(customerId) : null,
             vanRecId: Number(vanRecId),
             routeId: routeId ? Number(routeId) : null,
-            salesmanId: salesmanId ? Number(salesmanId) : null,
+            salesmanId: validSalesmanId,
             totalAmount: parsedTotal,
-            companyId: getTenantCompanyId(req) || undefined,
+            companyId: tenantCompanyId || undefined,
             details: {
               create: finalItems.map((item: any) => ({
                 productRecId: Number(item.productId),
@@ -159,13 +171,14 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
           data: {
             customerRecId: customerId ? Number(customerId) : null,
             customerLocationId: locIds.length > 0 ? locIds[0] : (customerLocationId ? Number(customerLocationId) : null),
-            salesmanId: salesmanId ? Number(salesmanId) : null,
+            salesmanId: validSalesmanId,
             totalAmount: finalTotalAmount,
             grossAmount: Number(subtotal || 0),
             discountAmount: Number(discountAmount || 0) + backendDiscountAmount,
             expenseAmount: finalTotalAmount - parsedTotal,
             paymentReceived: Number(paymentReceived || 0),
-            companyId: getTenantCompanyId(req) || undefined,
+            companyId: tenantCompanyId || undefined,
+            invoiceNumber: nextSeq,
             details: {
               create: finalItems.map((item: any) => {
                 const qty = Number(item.quantity || 1);
@@ -222,8 +235,14 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       }
 
       // 3. Post to Double-Entry Ledger (CashFlowMAIN & CashFlowDTL)
-      const salesRevHead = await tx.finHead.findFirst({ where: { name: 'Sales Revenue' } });
-      const defaultCashHead = await tx.finHead.findFirst({ where: { name: 'Cash in Till' } });
+      let salesRevHead = await tx.finHead.findFirst({ where: { name: 'Sales Revenue' } });
+      if (!salesRevHead) {
+        salesRevHead = await tx.finHead.create({ data: { name: 'Sales Revenue' } });
+      }
+      let defaultCashHead = await tx.finHead.findFirst({ where: { name: { contains: 'Cash' } } });
+      if (!defaultCashHead) {
+        defaultCashHead = await tx.finHead.create({ data: { name: 'Cash in Till' } });
+      }
       const cashHeadId = finHeadId ? Number(finHeadId) : defaultCashHead?.id;
 
       let customerFinHeadId: number | null = null;
@@ -319,8 +338,12 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
         }
       }
 
+      const saleSeq = (createdSale as any).invoiceNumber || createdSale.id;
+      const formattedInv = `INV-${saleSeq}`;
       return {
         ...createdSale,
+        invoiceNumber: formattedInv,
+        seqNumber: saleSeq,
         backendDiscountAmount,
         manualDiscount
       };
@@ -462,109 +485,143 @@ router.get('/customer-product-history', async (req, res) => {
   }
 });
 
-// GET lookup invoice details by invoice number or ID (Phase 32)
-router.get('/lookup/:invoiceNumber', async (req, res) => {
-  try {
-    const rawParam = req.params.invoiceNumber.trim();
-    const cleanIdStr = rawParam.replace(/\D/g, '');
-    const numericId = cleanIdStr ? parseInt(cleanIdStr, 10) : NaN;
+// GET lookup invoice details by query string OR path parameter (Phase 32)
+const handleInvoiceLookup = async (rawParam: string, companyId?: number | null, res?: any) => {
+  const cleanIdStr = rawParam.replace(/\D/g, '');
+  const numericId = cleanIdStr ? parseInt(cleanIdStr, 10) : NaN;
 
-    const sale = await prisma.saleMain.findFirst({
-      where: {
-        OR: [
-          ...(isNaN(numericId) ? [] : [{ id: numericId }]),
-          { id: isNaN(Number(rawParam)) ? -1 : Number(rawParam) }
-        ]
-      },
-      include: {
-        customerRec: true,
-        details: {
-          include: {
-            productRec: true
-          }
+  const sale = await prisma.saleMain.findFirst({
+    where: {
+      AND: [
+        ...(companyId ? [{ companyId }] : []),
+        {
+          OR: [
+            ...(isNaN(numericId) ? [] : [{ invoiceNumber: numericId }, { id: numericId }])
+          ]
         }
+      ]
+    },
+    include: {
+      customerRec: true,
+      salesman: true,
+      details: {
+        include: {
+          productRec: true
+        }
+      },
+      historyLogs: {
+        include: {
+          modifiedBy: true
+        },
+        orderBy: { modifiedAt: 'desc' }
       }
-    });
+    }
+  });
 
-    if (!sale) {
-      return res.status(404).json({ error: `Invoice '${rawParam}' not found.` });
+  if (!sale) {
+    return res.status(404).json({ error: `Invoice '${rawParam}' not found.` });
+  }
+
+  const custAny = sale.customerRec as any;
+  const mappedDetails = sale.details.map(d => {
+    const qty = Number(d.qty || 0);
+    const price = Number(d.price || 0);
+    const gross = Number((d as any).grossAmount || (qty * price));
+    const discPct = Number((d as any).discPercent || 0);
+    const cashDisc = Number((d as any).cashDiscount || 0);
+    const order = (d as any).discountOrder || null;
+    let lineNet = Number((d as any).netAmount || 0);
+    if (lineNet <= 0 && qty > 0) {
+      if (order === 'CASH_FIRST') {
+        const sub = Math.max(0, gross - cashDisc);
+        lineNet = Math.max(0, sub - (sub * (discPct / 100)));
+      } else if (order === 'PERCENT_FIRST') {
+        const sub = Math.max(0, gross - (gross * (discPct / 100)));
+        lineNet = Math.max(0, sub - cashDisc);
+      } else {
+        if (discPct > 0) lineNet = Math.max(0, gross - (gross * (discPct / 100)));
+        else if (cashDisc > 0) lineNet = Math.max(0, gross - cashDisc);
+        else lineNet = gross;
+      }
     }
 
-    const custAny = sale.customerRec as any;
-    const mappedDetails = sale.details.map(d => {
-      const qty = Number(d.qty || 0);
-      const price = Number(d.price || 0);
-      const gross = Number((d as any).grossAmount || (qty * price));
-      const discPct = Number((d as any).discPercent || 0);
-      const cashDisc = Number((d as any).cashDiscount || 0);
-      const order = (d as any).discountOrder || null;
-      let lineNet = Number((d as any).netAmount || 0);
-      if (lineNet <= 0 && qty > 0) {
-        if (order === 'CASH_FIRST') {
-          const sub = Math.max(0, gross - cashDisc);
-          lineNet = Math.max(0, sub - (sub * (discPct / 100)));
-        } else if (order === 'PERCENT_FIRST') {
-          const sub = Math.max(0, gross - (gross * (discPct / 100)));
-          lineNet = Math.max(0, sub - cashDisc);
-        } else {
-          if (discPct > 0) lineNet = Math.max(0, gross - (gross * (discPct / 100)));
-          else if (cashDisc > 0) lineNet = Math.max(0, gross - cashDisc);
-          else lineNet = gross;
-        }
-      }
+    return {
+      id: d.productRecId,
+      productRecId: d.productRecId,
+      productName: d.productRec ? d.productRec.productName : 'Unknown Product',
+      productCode: d.productRec?.productCode || '',
+      barCode: d.productRec?.barCode || '',
+      qty,
+      price,
+      discPercent: discPct,
+      cashDiscount: cashDisc,
+      grossAmount: gross,
+      netAmount: lineNet,
+      discountOrder: order,
+      totalPrice: lineNet
+    };
+  });
 
-      return {
-        id: d.id,
-        productRecId: d.productRecId,
-        productName: d.productRec ? d.productRec.productName : 'Unknown Product',
-        productCode: d.productRec?.productCode || '',
-        barCode: d.productRec?.barCode || '',
-        qty,
-        price,
-        discPercent: discPct,
-        cashDiscount: cashDisc,
-        grossAmount: gross,
-        netAmount: lineNet,
-        discountOrder: order,
-        totalPrice: lineNet
-      };
-    });
+  const sumGross = mappedDetails.reduce((sum, item) => sum + item.grossAmount, 0);
+  const sumNet = mappedDetails.reduce((sum, item) => sum + item.netAmount, 0);
+  const sumItemDiscounts = mappedDetails.reduce((sum, item) => sum + Math.max(0, item.grossAmount - item.netAmount), 0);
 
-    const sumGross = mappedDetails.reduce((sum, item) => sum + item.grossAmount, 0);
-    const sumNet = mappedDetails.reduce((sum, item) => sum + item.netAmount, 0);
-    const sumItemDiscounts = mappedDetails.reduce((sum, item) => sum + Math.max(0, item.grossAmount - item.netAmount), 0);
+  const dbGross = Number((sale as any).grossAmount || 0);
+  const dbDiscount = Number((sale as any).discountAmount || 0);
+  const dbNet = Number(sale.totalAmount || 0);
 
-    const dbGross = Number((sale as any).grossAmount || 0);
-    const dbDiscount = Number((sale as any).discountAmount || 0);
-    const dbNet = Number(sale.totalAmount || 0);
+  const grossAmount = dbGross > 0 ? dbGross : (sumGross > 0 ? sumGross : dbNet + dbDiscount);
+  const totalAmount = dbNet > 0 ? dbNet : sumNet;
+  const totalDiscount = dbDiscount > 0 
+    ? dbDiscount 
+    : (grossAmount - totalAmount > 0 ? (grossAmount - totalAmount) : sumItemDiscounts);
 
-    const grossAmount = dbGross > 0 ? dbGross : (sumGross > 0 ? sumGross : dbNet + dbDiscount);
-    const totalAmount = dbNet > 0 ? dbNet : sumNet;
-    const totalDiscount = dbDiscount > 0 
-      ? dbDiscount 
-      : (grossAmount - totalAmount > 0 ? (grossAmount - totalAmount) : sumItemDiscounts);
+  const displayInvNumber = `INV-${sale.invoiceNumber || sale.id}`;
 
-    res.json({
-      id: sale.id,
-      invoiceNumber: `INV-${sale.id}`,
-      date: sale.date,
-      customerRecId: sale.customerRecId,
-      customerRec: sale.customerRec,
-      customerName: custAny?.custName || custAny?.name || 'Walk-in Customer',
-      customerPhone: custAny?.phone || custAny?.custMobile || custAny?.custPhone || '',
-      salesman: 'System Admin',
-      booker: 'Counter Staff',
-      paymentMode: sale.customerRecId ? 'Customer Account (Credit)' : 'Cash',
-      grossAmount,
-      totalDiscount,
-      expenseAmount: (sale as any).expenseAmount || 0,
-      totalAmount,
-      paymentReceived: (sale as any).paymentReceived || 0,
-      remainingDues: sale.customerRecId ? (custAny?.CurrentBalance || totalAmount) : 0,
-      details: mappedDetails
-    });
+  res.json({
+    id: sale.id,
+    invoiceNumber: displayInvNumber,
+    rawInvoiceNumber: sale.invoiceNumber || sale.id,
+    date: sale.date,
+    customerRecId: sale.customerRecId,
+    customerRec: sale.customerRec,
+    customerName: custAny?.custName || custAny?.name || 'Walk-in Customer',
+    customerPhone: custAny?.phone || custAny?.custMobile || custAny?.custPhone || '',
+    salesman: sale.salesman?.name || 'System Admin',
+    booker: 'Counter Staff',
+    paymentMode: sale.customerRecId ? 'Customer Account (Credit)' : 'Cash',
+    grossAmount,
+    totalDiscount,
+    expenseAmount: (sale as any).expenseAmount || 0,
+    totalAmount,
+    paymentReceived: (sale as any).paymentReceived || 0,
+    remainingDues: sale.customerRecId ? (custAny?.CurrentBalance || totalAmount) : 0,
+    details: mappedDetails,
+    historyLogs: sale.historyLogs || []
+  });
+};
+
+router.get('/lookup', async (req: any, res) => {
+  try {
+    const queryVal = (req.query.refNo || req.query.invNo || req.query.query || '').toString().trim();
+    if (!queryVal) {
+      return res.status(400).json({ error: 'Ref # / Invoice # parameter is required' });
+    }
+    const tenantCompanyId = getTenantCompanyId(req);
+    await handleInvoiceLookup(queryVal, tenantCompanyId, res);
   } catch (error: any) {
-    console.error('Invoice Lookup Error:', error);
+    console.error('Invoice Lookup Query Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to lookup invoice' });
+  }
+});
+
+router.get('/lookup/:invoiceNumber', async (req: any, res) => {
+  try {
+    const rawParam = req.params.invoiceNumber.trim();
+    const tenantCompanyId = getTenantCompanyId(req);
+    await handleInvoiceLookup(rawParam, tenantCompanyId, res);
+  } catch (error: any) {
+    console.error('Invoice Lookup Param Error:', error);
     res.status(500).json({ error: error.message || 'Failed to lookup invoice' });
   }
 });
@@ -597,6 +654,170 @@ router.get('/customer-invoices/:customerId', async (req, res) => {
   } catch (error: any) {
     console.error('Failed to fetch customer invoices:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch customer invoices' });
+  }
+});
+
+// PUT /api/sales/:id — In-place edit of existing sale invoice
+router.put('/:id', requirePermission('allow-bill-editing'), async (req: AuthenticatedRequest, res) => {
+  try {
+    const saleId = Number(req.params.id);
+    const { items, subtotal, taxAmount, discountAmount, total, customerId } = req.body;
+
+    if (isNaN(saleId)) {
+      return res.status(400).json({ error: 'Invalid sale invoice ID' });
+    }
+
+    const tenantFilter = getTenantFilter(req);
+    const originalSale = await prisma.saleMain.findFirst({
+      where: { id: saleId, ...tenantFilter },
+      include: { details: true }
+    });
+
+    if (!originalSale) {
+      return res.status(404).json({ error: 'Sale invoice not found' });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Calculate stock differences for all products (old vs new)
+      const oldQtyMap = new Map<number, number>();
+      for (const dtl of originalSale.details) {
+        oldQtyMap.set(dtl.productRecId, (oldQtyMap.get(dtl.productRecId) || 0) + dtl.qty);
+      }
+
+      const newQtyMap = new Map<number, number>();
+      for (const item of (items || [])) {
+        const prodId = Number(item.productRecId || item.id || item.productId);
+        const qty = Number(item.qty !== undefined ? item.qty : (item.quantity !== undefined ? item.quantity : 1));
+        if (!isNaN(prodId)) {
+          newQtyMap.set(prodId, (newQtyMap.get(prodId) || 0) + qty);
+        }
+      }
+
+      // Collect all affected product IDs
+      const allProdIds = new Set([...oldQtyMap.keys(), ...newQtyMap.keys()]);
+      for (const prodId of allProdIds) {
+        const oldQty = oldQtyMap.get(prodId) || 0;
+        const newQty = newQtyMap.get(prodId) || 0;
+        const delta = newQty - oldQty; // Selling more units reduces currentStock by delta
+        if (delta !== 0) {
+          await tx.productRec.update({
+            where: { id: prodId },
+            data: { currentStock: { decrement: delta } }
+          });
+        }
+      }
+
+      // 2. Direct line item updates: Delete existing SaleInvDtl and recreate updated lines
+      await tx.saleInvDtl.deleteMany({ where: { saleMainId: saleId } });
+
+      const newDetails = [];
+      for (const item of (items || [])) {
+        const prodId = Number(item.productRecId || item.id || item.productId);
+        const qty = Number(item.qty !== undefined ? item.qty : (item.quantity !== undefined ? item.quantity : 1));
+        const price = Number(item.price !== undefined ? item.price : (item.rate !== undefined ? item.rate : (item.unitPrice !== undefined ? item.unitPrice : 0)));
+        const discPct = Number(item.discPercent || item.discPct || 0);
+        const cashDisc = Number(item.cashDiscount || 0);
+        const grossAmount = qty * price;
+        const netAmount = Number(item.netAmount || (grossAmount - (grossAmount * (discPct / 100)) - cashDisc));
+
+        const dtl = await tx.saleInvDtl.create({
+          data: {
+            saleMainId: saleId,
+            productRecId: prodId,
+            qty,
+            price,
+            discPercent: discPct,
+            cashDiscount: cashDisc,
+            grossAmount,
+            netAmount
+          }
+        });
+        newDetails.push(dtl);
+      }
+
+      // 3. Recalculate original parent record SaleMain
+      const newGrossSum = newDetails.reduce((sum, d) => sum + (d.grossAmount || 0), 0);
+      const newNetSum = total !== undefined ? Number(total) : newDetails.reduce((sum, d) => sum + (d.netAmount || 0), 0);
+      const newDiscountSum = discountAmount !== undefined ? Number(discountAmount) : Math.max(0, newGrossSum - newNetSum);
+
+      const updatedSale = await tx.saleMain.update({
+        where: { id: saleId },
+        data: {
+          grossAmount: newGrossSum,
+          discountAmount: newDiscountSum,
+          totalAmount: newNetSum,
+          customerRecId: customerId ? Number(customerId) : originalSale.customerRecId,
+          updatedAt: new Date()
+        },
+        include: { details: true }
+      });
+
+      // 4. Double-Entry Ledger Sync: Update CashFlowDTL entries for INV-{saleId}
+      const customerIdToUse = customerId ? Number(customerId) : originalSale.customerRecId;
+      if (customerIdToUse) {
+        const customer = await tx.customerRec.findUnique({
+          where: { id: customerIdToUse },
+          include: { finHead: true }
+        });
+        if (customer?.finHead) {
+          const customerDtls = await tx.cashFlowDTL.findMany({
+            where: {
+              finHeadId: customer.finHead.id,
+              cashFlowMain: { description: { contains: `INV-${saleId}` } }
+            }
+          });
+          for (const dtl of customerDtls) {
+            if (dtl.transactionType === 'DR') {
+              await tx.cashFlowDTL.update({
+                where: { id: dtl.id },
+                data: { amount: newNetSum }
+              });
+            }
+          }
+        }
+      }
+
+      // 5. Audit Logging: Record TransactionHistoryLog entry
+      let modifiedById: number | null = null;
+      if (req.user?.id) {
+        const emp = await tx.employeeRec.findUnique({ where: { id: req.user.id } });
+        if (emp) modifiedById = req.user.id;
+      }
+
+      const oldTotal = originalSale.totalAmount;
+      const amountDiff = newNetSum - oldTotal;
+      let logDesc = `In-place edit on INV-${saleId}: Total updated from Rs. ${oldTotal.toLocaleString()} to Rs. ${newNetSum.toLocaleString()}`;
+      if (amountDiff !== 0) {
+        logDesc += `. Balance/Amount difference: Rs. ${Math.abs(amountDiff).toLocaleString()} (${amountDiff < 0 ? 'Cash Returned/Reduced' : 'Additional Amount Charged'})`;
+      }
+      logDesc += `. Items count: ${(items || []).length}.`;
+
+      await tx.transactionHistoryLog.create({
+        data: {
+          saleMainId: saleId,
+          modifiedById: modifiedById,
+          changeDetails: logDesc,
+          companyId: req.user?.companyId
+        }
+      });
+
+      const allHistoryLogs = await tx.transactionHistoryLog.findMany({
+        where: { saleMainId: saleId },
+        include: { modifiedBy: true },
+        orderBy: { modifiedAt: 'desc' }
+      });
+
+      return {
+        ...updatedSale,
+        invoiceNumber: `INV-${updatedSale.id}`,
+        historyLogs: allHistoryLogs
+      };
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('In-Place Sale Edit Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to edit sale invoice' });
   }
 });
 

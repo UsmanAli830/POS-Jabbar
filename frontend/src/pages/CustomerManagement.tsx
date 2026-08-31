@@ -3,6 +3,7 @@ import { Save, UserCheck, Trash2, Edit3, Eye, MapPin, Plus, Check, X } from 'luc
 import { AgGridReact } from 'ag-grid-react';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
+import { useAuth } from '../context/AuthContext';
 
 type CustomerRec = {
   id: number;
@@ -16,6 +17,7 @@ type CustomerRec = {
   openingBalance: number;
   liveBalance: number;
   isActive: boolean;
+  code?: string | null;
   zone: { id: number, name: string } | null;
   areaRecord: { id: number, name: string } | null;
   route: { id: number, name: string } | null;
@@ -39,6 +41,9 @@ type DropdownOption = {
 type FormMode = 'DISABLED' | 'CREATE' | 'VIEW' | 'EDIT';
 
 const CustomerManagement: React.FC = () => {
+  const { user, hasPermission } = useAuth();
+  const canEditCustomer = Boolean(user?.isAdmin || user?.role === 'ADMIN' || user?.username === 'admin' || hasPermission('customer:edit') || hasPermission('customers'));
+
   const [customers, setCustomers] = useState<CustomerRec[]>([]);
   const [zones, setZones] = useState<DropdownOption[]>([]);
   const [areaRecords, setAreaRecords] = useState<DropdownOption[]>([]);
@@ -486,10 +491,11 @@ const CustomerManagement: React.FC = () => {
               </button>
               <button 
                 type="button"
-                disabled={!selectedCustomerId}
+                disabled={!selectedCustomerId || !canEditCustomer}
                 onClick={() => setMode('EDIT')}
                 className={mode === 'EDIT' ? 'pos-btn pos-btn-primary' : 'pos-btn pos-btn-secondary'}
-                style={{ padding: '2px 8px', height: '22px' }}
+                style={{ padding: '2px 8px', height: '22px', opacity: canEditCustomer ? 1 : 0.5, cursor: canEditCustomer && selectedCustomerId ? 'pointer' : 'not-allowed' }}
+                title={canEditCustomer ? 'Edit Customer' : 'Editing disabled by administrator permissions'}
               >
                 <Edit3 size={12} />
               </button>

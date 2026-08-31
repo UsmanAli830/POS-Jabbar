@@ -48,7 +48,7 @@ function calculateLineNet(qty: number, price: number, discPercent: number, cashD
 
 const SalesReturn: React.FC = () => {
   const { user, hasPermission } = useAuth();
-  const canEditBills = user?.isAdmin || user?.role === 'ADMIN' || user?.username === 'admin' || hasPermission('allow-bill-editing') || hasPermission('sales-return');
+  const canEditBills = Boolean(user?.isAdmin || user?.role === 'ADMIN' || user?.username === 'admin' || hasPermission('sales-return:edit') || hasPermission('allow-bill-editing'));
   const { settings } = useSettings();
   const navigate = useNavigate();
 

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { getTenantFilter, getTenantCompanyId } from '../middleware/auth';
+import { getTenantFilter, getTenantCompanyId, requirePermission } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -149,7 +149,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT update a customer record
-router.put('/:id', async (req, res) => {
+router.put('/:id', requirePermission('customer:edit'), async (req, res) => {
   try {
     const { id } = req.params;
     const { 

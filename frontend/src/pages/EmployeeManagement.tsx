@@ -13,26 +13,73 @@ import type { ReceiptType, ReceiptData } from '../components/ReceiptDocument';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 
-interface ERPModuleItem {
+export interface SubPermissionDef {
+  key: string;
+  name: string;
+  description?: string;
+}
+
+export interface ERPModuleItem {
   key: string;
   name: string;
   category: 'Sales' | 'Inventory' | 'Reports' | 'Accounts' | 'Manage';
   description: string;
+  subPermission?: SubPermissionDef;
 }
 
 const ERP_MODULES: ERPModuleItem[] = [
   // 1. Sales Department
-  { key: 'pos', name: 'Cash Register (POS)', category: 'Sales', description: 'POS checkout register, daily cash sales, and barcode scanning' },
+  {
+    key: 'pos',
+    name: 'Cash Register (POS) - Access',
+    category: 'Sales',
+    description: 'POS checkout register, daily cash sales, and barcode scanning',
+    subPermission: {
+      key: 'pos:edit',
+      name: 'Allow In-Place Bill Editing',
+      description: 'Edit & update past sales bills directly'
+    }
+  },
   { key: 'sales', name: 'Sales Invoicing & Orders', category: 'Sales', description: 'Sales registers, order invoices, and draft customer bills' },
   { key: 'bookings', name: 'Order Booking Sheet', category: 'Sales', description: 'Order taker booking sheet and field sales orders' },
-  { key: 'sales-return', name: 'Sales Returns', category: 'Sales', description: 'Process customer returns and ledger credit adjustments' },
+  {
+    key: 'sales-return',
+    name: 'Sales Returns - Access',
+    category: 'Sales',
+    description: 'Process customer returns and ledger credit adjustments',
+    subPermission: {
+      key: 'sales-return:edit',
+      name: 'Allow In-Place Return Editing',
+      description: 'Modify past sales returns & adjust original invoices'
+    }
+  },
   { key: 'promotions', name: 'Promotions & Discounts', category: 'Sales', description: 'Configure campaign promo discounts and promotional schemes' },
 
   // 2. Inventory Department
   { key: 'products', name: 'Product Catalog', category: 'Inventory', description: 'Product setup, variants, price matrices, and barcodes' },
   { key: 'inventory', name: 'Inventory Control', category: 'Inventory', description: 'Live warehouse stock levels, min-reorders, and physical counts' },
-  { key: 'purchases', name: 'Purchase Management', category: 'Inventory', description: 'Receive vendor stock, log purchase bills, and vendor invoices' },
-  { key: 'purchase-return', name: 'Purchase Returns', category: 'Inventory', description: 'Process supplier debit notes and return stock to vendors' },
+  {
+    key: 'purchases',
+    name: 'Purchase Management - Access',
+    category: 'Inventory',
+    description: 'Receive vendor stock, log purchase bills, and vendor invoices',
+    subPermission: {
+      key: 'purchase:edit',
+      name: 'Allow In-Place Bill Editing',
+      description: 'Edit & update past vendor purchase GRN bills directly'
+    }
+  },
+  {
+    key: 'purchase-return',
+    name: 'Purchase Returns - Access',
+    category: 'Inventory',
+    description: 'Process supplier debit notes and return stock to vendors',
+    subPermission: {
+      key: 'purchase-return:edit',
+      name: 'Allow In-Place Return Editing',
+      description: 'Modify past purchase returns & adjust supplier bills'
+    }
+  },
   { key: 'returns', name: 'Damages & Wastage', category: 'Inventory', description: 'Track damaged items, quarantine loss, and write-offs' },
   { key: 'barcode-studio', name: 'Barcode Studio', category: 'Inventory', description: 'Design, generate, and batch print barcode product labels' },
   { key: 'bulk', name: 'Bulk Price & Stock Update', category: 'Inventory', description: 'Mass update inventory prices and warehouse counts' },
@@ -61,9 +108,29 @@ const ERP_MODULES: ERPModuleItem[] = [
   { key: 'assets-expenses', name: 'Assets & Expenses Hub', category: 'Accounts', description: 'Fixed assets register and operational expense tracking' },
 
   // 5. Management & Operations Department
-  { key: 'customers', name: 'Customer Master', category: 'Manage', description: 'Register customers, assign credit limits, and delivery details' },
+  {
+    key: 'customers',
+    name: 'Customers - Access',
+    category: 'Manage',
+    description: 'Register customers, assign credit limits, and delivery details',
+    subPermission: {
+      key: 'customer:edit',
+      name: 'Allow Profile & Balance Updates',
+      description: 'Edit customer profile details, credit limits, and addresses'
+    }
+  },
   { key: 'assets', name: 'Fixed Assets', category: 'Manage', description: 'Track company property, equipment, and depreciation' },
-  { key: 'vendors', name: 'Vendor Master', category: 'Manage', description: 'Register suppliers, contact details, and credit terms' },
+  {
+    key: 'vendors',
+    name: 'Vendors - Access',
+    category: 'Manage',
+    description: 'Register suppliers, contact details, and credit terms',
+    subPermission: {
+      key: 'vendor:edit',
+      name: 'Allow Profile & Balance Updates',
+      description: 'Edit vendor profiles, company details, and credit terms'
+    }
+  },
   { key: 'employees', name: 'Employee Master', category: 'Manage', description: 'Staff directory, designations, and basic wage rates' },
   { key: 'employee-portal', name: 'Employee Self-Service Portal', category: 'Manage', description: 'Staff personal dashboard, salary slips, and attendance history' },
   { key: 'settings', name: 'Store Settings', category: 'Manage', description: 'Invoice templates, tax percentages, currency, and branding' }
@@ -194,6 +261,9 @@ const EmployeeManagement: React.FC = () => {
     const map: Record<string, boolean> = {};
     ERP_MODULES.forEach(m => {
       map[m.key] = false;
+      if (m.subPermission) {
+        map[m.subPermission.key] = false;
+      }
     });
 
     if (!emp) {
@@ -207,8 +277,22 @@ const EmployeeManagement: React.FC = () => {
     if (emp?.isAdmin) {
       ERP_MODULES.forEach(m => {
         map[m.key] = true;
+        if (m.subPermission) {
+          map[m.subPermission.key] = true;
+        }
       });
     }
+
+    // Auto-disable sub-permissions if primary permission is false
+    ERP_MODULES.forEach(m => {
+      if (m.subPermission && !map[m.key]) {
+        map[m.subPermission.key] = false;
+      }
+    });
+
+    map['allow-bill-editing'] = Boolean(
+      map['pos:edit'] || map['purchase:edit'] || map['sales-return:edit'] || map['purchase-return:edit']
+    );
 
     setPermissionsMap(map);
   };
@@ -279,10 +363,42 @@ const EmployeeManagement: React.FC = () => {
     if (mode === 'VIEW' && selectedEmployeeId) {
       setMode('EDIT');
     }
-    setPermissionsMap(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+    setPermissionsMap(prev => {
+      const isCurrentlyChecked = Boolean(prev[key]);
+      const nextVal = !isCurrentlyChecked;
+      const updated = { ...prev, [key]: nextVal };
+
+      const mod = ERP_MODULES.find(m => m.key === key);
+      if (mod?.subPermission) {
+        if (!nextVal) {
+          // If primary access is unchecked, disable and uncheck sub-option automatically
+          updated[mod.subPermission.key] = false;
+        }
+      }
+
+      updated['allow-bill-editing'] = Boolean(
+        updated['pos:edit'] || updated['purchase:edit'] || updated['sales-return:edit'] || updated['purchase-return:edit']
+      );
+
+      return updated;
+    });
+  };
+
+  const handleToggleSubPermission = (subKey: string) => {
+    if (mode === 'VIEW' && selectedEmployeeId) {
+      setMode('EDIT');
+    }
+    setPermissionsMap(prev => {
+      const isCurrentlyChecked = Boolean(prev[subKey]);
+      const nextVal = !isCurrentlyChecked;
+      const updated = { ...prev, [subKey]: nextVal };
+
+      updated['allow-bill-editing'] = Boolean(
+        updated['pos:edit'] || updated['purchase:edit'] || updated['sales-return:edit'] || updated['purchase-return:edit']
+      );
+
+      return updated;
+    });
   };
 
   const handleToggleDepartment = (deptCategory: string, allow: boolean) => {
@@ -294,7 +410,13 @@ const EmployeeManagement: React.FC = () => {
       const updated = { ...prev };
       deptModules.forEach(m => {
         updated[m.key] = allow;
+        if (m.subPermission) {
+          updated[m.subPermission.key] = allow;
+        }
       });
+      updated['allow-bill-editing'] = Boolean(
+        updated['pos:edit'] || updated['purchase:edit'] || updated['sales-return:edit'] || updated['purchase-return:edit']
+      );
       return updated;
     });
   };
@@ -306,7 +428,11 @@ const EmployeeManagement: React.FC = () => {
     const updated: Record<string, boolean> = {};
     ERP_MODULES.forEach(m => {
       updated[m.key] = allowed;
+      if (m.subPermission) {
+        updated[m.subPermission.key] = allowed;
+      }
     });
+    updated['allow-bill-editing'] = allowed;
     setPermissionsMap(updated);
   };
 
@@ -1097,41 +1223,92 @@ const EmployeeManagement: React.FC = () => {
                           }}>
                             {deptModules.map(mod => {
                               const isChecked = Boolean(permissionsMap[mod.key]);
+                              const hasSub = Boolean(mod.subPermission);
+                              const subKey = mod.subPermission?.key || '';
+                              const isSubChecked = hasSub && Boolean(permissionsMap[subKey]);
 
                               return (
                                 <div
                                   key={mod.key}
-                                  onClick={() => handleToggleModule(mod.key)}
                                   style={{
                                     display: 'flex',
-                                    alignItems: 'flex-start',
-                                    gap: '8px',
+                                    flexDirection: 'column',
+                                    gap: '4px',
                                     padding: '6px 8px',
                                     background: isChecked ? dept.bg : '#ffffff',
                                     border: isChecked ? `1.5px solid ${dept.color}` : '1px solid #e2e8f0',
                                     borderRadius: '6px',
-                                    cursor: 'pointer',
                                     transition: 'all 0.12s ease'
                                   }}
                                 >
-                                  <div style={{ marginTop: '2px', color: isChecked ? dept.color : '#94a3b8' }}>
-                                    {isChecked ? <CheckSquare size={15} /> : <Square size={15} />}
-                                  </div>
-                                  <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-                                    <div style={{
-                                      fontSize: '11px',
-                                      fontWeight: 700,
-                                      color: isChecked ? dept.color : '#1e293b',
-                                      whiteSpace: 'nowrap',
-                                      textOverflow: 'ellipsis',
-                                      overflow: 'hidden'
-                                    }}>
-                                      {mod.name}
+                                  {/* Primary Access Checkbox */}
+                                  <div
+                                    onClick={() => handleToggleModule(mod.key)}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'flex-start',
+                                      gap: '8px',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <div style={{ marginTop: '2px', color: isChecked ? dept.color : '#94a3b8' }}>
+                                      {isChecked ? <CheckSquare size={15} /> : <Square size={15} />}
                                     </div>
-                                    <div style={{ fontSize: '9px', color: '#64748b', lineHeight: 1.2, marginTop: '1px' }}>
-                                      {mod.description}
+                                    <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                                      <div style={{
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        color: isChecked ? dept.color : '#1e293b',
+                                        whiteSpace: 'nowrap',
+                                        textOverflow: 'ellipsis',
+                                        overflow: 'hidden'
+                                      }}>
+                                        {mod.name}
+                                      </div>
+                                      <div style={{ fontSize: '9px', color: '#64748b', lineHeight: 1.2, marginTop: '1px' }}>
+                                        {mod.description}
+                                      </div>
                                     </div>
                                   </div>
+
+                                  {/* Indented Sub-Permission Option */}
+                                  {hasSub && mod.subPermission && (
+                                    <div
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (isChecked) {
+                                          handleToggleSubPermission(subKey);
+                                        }
+                                      }}
+                                      style={{
+                                        marginLeft: '20px',
+                                        marginTop: '2px',
+                                        padding: '4px 6px',
+                                        background: isChecked ? (isSubChecked ? '#ffffff' : '#f8fafc') : '#f1f5f9',
+                                        border: `1px dashed ${isSubChecked ? dept.color : '#cbd5e1'}`,
+                                        borderRadius: '4px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        cursor: isChecked ? 'pointer' : 'not-allowed',
+                                        opacity: isChecked ? 1 : 0.5
+                                      }}
+                                    >
+                                      <div style={{ color: isSubChecked ? dept.color : '#94a3b8' }}>
+                                        {isSubChecked ? <CheckSquare size={13} /> : <Square size={13} />}
+                                      </div>
+                                      <div style={{ flex: 1, overflow: 'hidden' }}>
+                                        <div style={{ fontSize: '10px', fontWeight: 700, color: isSubChecked ? dept.color : '#475569' }}>
+                                          {mod.subPermission.name}
+                                        </div>
+                                        {mod.subPermission.description && (
+                                          <div style={{ fontSize: '8px', color: '#64748b' }}>
+                                            {mod.subPermission.description}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}

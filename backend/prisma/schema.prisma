@@ -15,51 +15,52 @@ model Location {
   sales                 Sale[]
   bookingSheets         BookingSheet[]
   damagedStock          DamagedStock[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId             Int?
+  company               Company?               @relation(fields: [companyId], references: [id])
 }
 
 model Company {
-  id                 Int                 @id @default(autoincrement())
-  name               String
-  address            String?
-  contactPerson      String?
-  phone              String?
-  email              String?
-  createdAt          DateTime            @default(now())
-  products           Product[]
-  productRecs        ProductRec[]
-  employees          EmployeeRec[]
-  licenses           SoftwareLicense[]
-  customerRecs       CustomerRec[]
-  sellerRecs         SellerRec[]
-  saleMains          SaleMain[]
-  spotSaleMains      SpotSaleMain[]
-  manualSaleRtnMains ManualSaleRtnMain[]
-  purMains           PurMain[]
-  purRtnMains        PurRtnMain[]
-  expenceRecords     ExpenceRecord[]
-  cashFlowMains      CashFlowMAIN[]
-  recoveries         Recovery[]
-  manualCredits      ManualCredit[]
-  settlementMains    SettlementMain[]
-  assetRecs          AssetRec[]
-  assetMains         AssetMain[]
-  discountSchemes    DiscountScheme[]
-  storeSettings      StoreSettings[]
-  sales              Sale[]
-  paymentReceipts    PaymentReceipt[]
-  bookingSheets      BookingSheet[]
-  damagedStocks      DamagedStock[]
-  customerLocations  CustomerLocation[]
-  vendorLocations    VendorLocation[]
-  locations          Location[]
-  zones              Zone[]
-  areaRecords        AreaRecord[]
-  routes             Route[]
-  pCats              PCat[]
-  subCats            SubCat[]
-  postRecs           PostRec[]
+  id                    Int                     @id @default(autoincrement())
+  name                  String
+  address               String?
+  contactPerson         String?
+  phone                 String?
+  email                 String?
+  createdAt             DateTime                @default(now())
+  products              Product[]
+  productRecs           ProductRec[]
+  employees             EmployeeRec[]
+  licenses              SoftwareLicense[]
+  customerRecs          CustomerRec[]
+  sellerRecs            SellerRec[]
+  saleMains             SaleMain[]
+  spotSaleMains         SpotSaleMain[]
+  manualSaleRtnMains    ManualSaleRtnMain[]
+  purMains              PurMain[]
+  purRtnMains           PurRtnMain[]
+  expenceRecords        ExpenceRecord[]
+  cashFlowMains         CashFlowMAIN[]
+  recoveries            Recovery[]
+  manualCredits         ManualCredit[]
+  settlementMains       SettlementMain[]
+  assetRecs             AssetRec[]
+  assetMains            AssetMain[]
+  discountSchemes       DiscountScheme[]
+  storeSettings         StoreSettings[]
+  sales                 Sale[]
+  paymentReceipts       PaymentReceipt[]
+  bookingSheets         BookingSheet[]
+  damagedStocks         DamagedStock[]
+  customerLocations     CustomerLocation[]
+  vendorLocations       VendorLocation[]
+  locations             Location[]
+  zones                 Zone[]
+  areaRecords           AreaRecord[]
+  routes                Route[]
+  pCats                 PCat[]
+  subCats               SubCat[]
+  postRecs              PostRec[]
+  TransactionHistoryLog TransactionHistoryLog[]
 }
 
 model Category {
@@ -244,8 +245,8 @@ model Sale {
   invoiceExpenses   InvoiceExpense[]
   customerShopId    Int?
   customerShop      CustomerShop?    @relation(fields: [customerShopId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId         Int?
+  company           Company?         @relation(fields: [companyId], references: [id])
 }
 
 model SaleItem {
@@ -391,21 +392,21 @@ model VendorTransaction {
 }
 
 model Employee {
-  id                  Int                   @id @default(autoincrement())
-  name                String                @default("")
-  firstName           String?
-  lastName            String?
-  hourlyRate          Float?                @default(0)
-  phone               String?
-  pinCode             String                @unique
-  role                String // e.g., 'ADMIN', 'MANAGER', 'CASHIER', 'SALESMAN'
-  baseSalary          Float                 @default(0)
-  commissionRate      Float                 @default(0)
-  isActive            Boolean               @default(true)
-  shifts              Shift[]
-  salesAsSalesman     Sale[]                @relation("Salesman")
-  salesBooked         Sale[]                @relation("Booker")
-  transactions        EmployeeTransaction[]
+  id              Int                   @id @default(autoincrement())
+  name            String                @default("")
+  firstName       String?
+  lastName        String?
+  hourlyRate      Float?                @default(0)
+  phone           String?
+  pinCode         String                @unique
+  role            String // e.g., 'ADMIN', 'MANAGER', 'CASHIER', 'SALESMAN'
+  baseSalary      Float                 @default(0)
+  commissionRate  Float                 @default(0)
+  isActive        Boolean               @default(true)
+  shifts          Shift[]
+  salesAsSalesman Sale[]                @relation("Salesman")
+  salesBooked     Sale[]                @relation("Booker")
+  transactions    EmployeeTransaction[]
 }
 
 model EmployeeTransaction {
@@ -440,20 +441,20 @@ model DamagedStock {
   description  String
   status       String   @default("QUARANTINED") // 'QUARANTINED', 'RETURNED', 'WRITTEN_OFF'
   dateReported DateTime @default(now())
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId    Int?
+  company      Company? @relation(fields: [companyId], references: [id])
 }
 
 model StoreSettings {
-  id                 Int     @id @default(autoincrement())
-  storeName          String  @default("Ali Sanitary Store")
-  storeAddress       String  @default("Main Wholesale & Retail Market")
-  receiptFooter      String? @default("Thank you for your business! — Ali Sanitary Store")
-  primaryColor       String  @default("#0ea5e9")
+  id                 Int      @id @default(autoincrement())
+  storeName          String   @default("Ali Sanitary Store")
+  storeAddress       String   @default("Main Wholesale & Retail Market")
+  receiptFooter      String?  @default("Thank you for your business! — Ali Sanitary Store")
+  primaryColor       String   @default("#0ea5e9")
   logoUrl            String?
-  allowNegativeStock Boolean @default(false)
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  allowNegativeStock Boolean  @default(false)
+  companyId          Int?
+  company            Company? @relation(fields: [companyId], references: [id])
 }
 
 model PaymentReceipt {
@@ -463,8 +464,8 @@ model PaymentReceipt {
   amount        Float
   date          DateTime @default(now())
   paymentMethod String
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId     Int?
+  company       Company? @relation(fields: [companyId], references: [id])
 }
 
 model CustomerReturn {
@@ -493,33 +494,33 @@ model TradeOffer {
 }
 
 model BookingSheet {
-  id             Int       @id @default(autoincrement())
-  invoiceNumber  String    @unique
-  date           DateTime  @default(now())
+  id             Int          @id @default(autoincrement())
+  invoiceNumber  String       @unique
+  date           DateTime     @default(now())
   subtotal       Float
   taxAmount      Float
   discountAmount Float
   total          Float
   locationId     Int
-  location       Location  @relation(fields: [locationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  paymentMethod  String    @default("CASH")
-  amountPaid     Float     @default(0)
-  paymentStatus  String    @default("PAID") // 'PAID', 'PENDING', 'PARTIAL'
+  location       Location     @relation(fields: [locationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  paymentMethod  String       @default("CASH")
+  amountPaid     Float        @default(0)
+  paymentStatus  String       @default("PAID") // 'PAID', 'PENDING', 'PARTIAL'
   dueDate        DateTime?
   salesmanId     Int?
   salesman       EmployeeRec? @relation("BookingSalesman", fields: [salesmanId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   bookerId       Int?
   booker         EmployeeRec? @relation("BookingBooker", fields: [bookerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   customerId     Int?
-  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  status         String    @default("OPEN") // 'OPEN', 'FULFILLED', 'CANCELLED'
+  customer       Customer?    @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  status         String       @default("OPEN") // 'OPEN', 'FULFILLED', 'CANCELLED'
 
   bookingItems BookingItem[]
   inventoryTx  InventoryTransaction[]
   Product      Product?               @relation(fields: [productId], references: [id])
   productId    Int?
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId    Int?
+  company      Company?               @relation(fields: [companyId], references: [id])
 }
 
 model BookingItem {
@@ -547,22 +548,22 @@ model InvoiceExpense {
 }
 
 model PCat {
-  id       Int          @id @default(autoincrement())
-  name     String
-  products ProductRec[]
-  subCats  SubCat[]
+  id        Int          @id @default(autoincrement())
+  name      String
+  products  ProductRec[]
+  subCats   SubCat[]
   companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  company   Company?     @relation(fields: [companyId], references: [id])
 }
 
 model SubCat {
-  id       Int          @id @default(autoincrement())
-  name     String
-  pCatId   Int?
-  pCat     PCat?        @relation(fields: [pCatId], references: [id])
-  products ProductRec[]
+  id        Int          @id @default(autoincrement())
+  name      String
+  pCatId    Int?
+  pCat      PCat?        @relation(fields: [pCatId], references: [id])
+  products  ProductRec[]
   companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  company   Company?     @relation(fields: [companyId], references: [id])
 }
 
 model PType {
@@ -629,16 +630,16 @@ model Zone {
   id           Int           @id @default(autoincrement())
   name         String
   customerRecs CustomerRec[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId    Int?
+  company      Company?      @relation(fields: [companyId], references: [id])
 }
 
 model AreaRecord {
   id           Int           @id @default(autoincrement())
   name         String
   customerRecs CustomerRec[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId    Int?
+  company      Company?      @relation(fields: [companyId], references: [id])
 }
 
 model Route {
@@ -646,8 +647,8 @@ model Route {
   name          String
   customerRecs  CustomerRec[]
   spotSaleMains SpotSaleMain[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId     Int?
+  company       Company?       @relation(fields: [companyId], references: [id])
 }
 
 model LoadType {
@@ -699,8 +700,8 @@ model CustomerRec {
   recoveries    Recovery[]
   manualCredits ManualCredit[]
   locations     CustomerLocation[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId     Int?
+  company       Company?           @relation(fields: [companyId], references: [id])
 }
 
 model SellerRec {
@@ -720,8 +721,8 @@ model SellerRec {
   finHead    FinHead?
   locations  VendorLocation[]
   PurRtnMain PurRtnMain[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId  Int?
+  company    Company?         @relation(fields: [companyId], references: [id])
 }
 
 model FinHeadMainGroup {
@@ -760,8 +761,8 @@ model CashFlowMAIN {
   updatedAt   DateTime      @default(now()) @updatedAt
   description String?
   details     CashFlowDTL[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId   Int?
+  company     Company?      @relation(fields: [companyId], references: [id])
 }
 
 model CashFlowDTL {
@@ -793,8 +794,8 @@ model ExpenceRecord {
   employee        EmployeeRec? @relation(fields: [employeeId], references: [id])
   financialHeadId Int?
   finHead         FinHead?     @relation(fields: [financialHeadId], references: [id])
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId       Int?
+  company         Company?     @relation(fields: [companyId], references: [id])
 }
 
 model CashDeposit {
@@ -812,8 +813,8 @@ model Recovery {
   customerRecId Int?
   customerRec   CustomerRec? @relation(fields: [customerRecId], references: [id])
   remarks       String?
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId     Int?
+  company       Company?     @relation(fields: [companyId], references: [id])
 }
 
 model ManualCredit {
@@ -823,8 +824,8 @@ model ManualCredit {
   customerRecId Int?
   customerRec   CustomerRec? @relation(fields: [customerRecId], references: [id])
   remarks       String?
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId     Int?
+  company       Company?     @relation(fields: [companyId], references: [id])
 }
 
 model CashType {
@@ -833,16 +834,20 @@ model CashType {
 }
 
 model PurMain {
-  id               Int             @id @default(autoincrement())
-  date             DateTime        @default(now())
+  id               Int                     @id @default(autoincrement())
+  date             DateTime                @default(now())
   sellerRecId      Int?
-  sellerRec        SellerRec?      @relation(fields: [sellerRecId], references: [id])
+  sellerRec        SellerRec?              @relation(fields: [sellerRecId], references: [id])
   vendorLocationId Int?
-  vendorLocation   VendorLocation? @relation(fields: [vendorLocationId], references: [id])
-  totalAmount      Float           @default(0)
+  vendorLocation   VendorLocation?         @relation(fields: [vendorLocationId], references: [id])
+  totalAmount      Float                   @default(0)
   details          PurDtl[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  historyLogs      TransactionHistoryLog[]
+  invoiceNumber    Int?
+  companyId        Int?
+  company          Company?                @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, invoiceNumber])
 }
 
 model PurDtl {
@@ -862,8 +867,8 @@ model PurRtnMain {
   sellerRec   SellerRec?  @relation(fields: [sellerRecId], references: [id])
   totalAmount Float       @default(0)
   details     PurRtnDtl[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId   Int?
+  company     Company?    @relation(fields: [companyId], references: [id])
 }
 
 model PurRtnDtl {
@@ -877,26 +882,30 @@ model PurRtnDtl {
 }
 
 model SaleMain {
-  id                 Int               @id @default(autoincrement())
-  date               DateTime          @default(now())
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @default(now()) @updatedAt
+  id                 Int                     @id @default(autoincrement())
+  date               DateTime                @default(now())
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @default(now()) @updatedAt
   customerRecId      Int?
-  customerRec        CustomerRec?      @relation(fields: [customerRecId], references: [id])
+  customerRec        CustomerRec?            @relation(fields: [customerRecId], references: [id])
   customerLocationId Int?
-  customerLocation   CustomerLocation? @relation(fields: [customerLocationId], references: [id])
+  customerLocation   CustomerLocation?       @relation(fields: [customerLocationId], references: [id])
   salesmanId         Int?
-  salesman           EmployeeRec?      @relation(fields: [salesmanId], references: [id])
-  totalAmount        Float             @default(0)
-  grossAmount        Float             @default(0)
-  discountAmount     Float             @default(0)
-  expenseAmount      Float             @default(0)
-  paymentReceived    Float             @default(0)
-  returnAmount       Float             @default(0)
+  salesman           EmployeeRec?            @relation(fields: [salesmanId], references: [id])
+  totalAmount        Float                   @default(0)
+  grossAmount        Float                   @default(0)
+  discountAmount     Float                   @default(0)
+  expenseAmount      Float                   @default(0)
+  paymentReceived    Float                   @default(0)
+  returnAmount       Float                   @default(0)
   details            SaleInvDtl[]
   saleLocations      SaleLocation[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  historyLogs        TransactionHistoryLog[]
+  invoiceNumber      Int?
+  companyId          Int?
+  company            Company?                @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, invoiceNumber])
 }
 
 model SaleInvDtl {
@@ -929,8 +938,8 @@ model SpotSaleMain {
   salesman      EmployeeRec?  @relation(fields: [salesmanId], references: [id])
   totalAmount   Float         @default(0)
   details       SpotSaleDtl[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId     Int?
+  company       Company?      @relation(fields: [companyId], references: [id])
 }
 
 model SpotSaleDtl {
@@ -950,8 +959,8 @@ model ManualSaleRtnMain {
   customerRec   CustomerRec?       @relation(fields: [customerRecId], references: [id])
   totalAmount   Float              @default(0)
   details       ManualSaleRtnDtl[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId     Int?
+  company       Company?           @relation(fields: [companyId], references: [id])
 }
 
 model ManualSaleRtnDtl {
@@ -973,8 +982,8 @@ model SettlementMain {
   sellerRec     SellerRec?      @relation(fields: [sellerRecId], references: [id])
   totalAmount   Float           @default(0)
   details       SettlementDtl[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId     Int?
+  company       Company?        @relation(fields: [companyId], references: [id])
 }
 
 model SettlementDtl {
@@ -990,29 +999,29 @@ model PostRec {
   title     String
   employees EmployeeRec[]
   companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  company   Company?      @relation(fields: [companyId], references: [id])
 }
 
 model EmployeeRec {
-  id          Int       @id @default(autoincrement())
-  name        String
-  phone       String?
-  email       String?
-  empCNIC     String?
-  address     String?
-  joiningDate DateTime?
-  baseSalary  Float     @default(0)
-  flatBonus   Float     @default(0)
-  commissionRate Float   @default(0)
-  postRecId   Int?
-  postRec     PostRec?  @relation(fields: [postRecId], references: [id])
-  username    String?   @unique
-  password    String?
+  id             Int       @id @default(autoincrement())
+  name           String
+  phone          String?
+  email          String?
+  empCNIC        String?
+  address        String?
+  joiningDate    DateTime?
+  baseSalary     Float     @default(0)
+  flatBonus      Float     @default(0)
+  commissionRate Float     @default(0)
+  postRecId      Int?
+  postRec        PostRec?  @relation(fields: [postRecId], references: [id])
+  username       String?   @unique
+  password       String?
 
-  isAdmin        Boolean   @default(false)
-  role           String    @default("EMPLOYEE") // 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE'
-  companyId      Int?
-  company        Company?  @relation(fields: [companyId], references: [id])
+  isAdmin   Boolean  @default(false)
+  role      String   @default("EMPLOYEE") // 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE'
+  companyId Int?
+  company   Company? @relation(fields: [companyId], references: [id])
 
   attendance          EmpAttandence[]
   salaries            EmpSalary[]
@@ -1021,9 +1030,26 @@ model EmployeeRec {
   expenceRecords      ExpenceRecord[]
   sales               SaleMain[]
   spotSales           SpotSaleMain[]
-  bookingSheetsSold   BookingSheet[]        @relation("BookingSalesman")
-  bookingSheetsBooked BookingSheet[]        @relation("BookingBooker")
+  bookingSheetsSold   BookingSheet[]          @relation("BookingSalesman")
+  bookingSheetsBooked BookingSheet[]          @relation("BookingBooker")
   permissions         UserPermission[]
+  historyLogs         TransactionHistoryLog[]
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @default(now()) @updatedAt
+}
+
+model TransactionHistoryLog {
+  id            Int          @id @default(autoincrement())
+  saleMainId    Int?
+  saleMain      SaleMain?    @relation(fields: [saleMainId], references: [id], onDelete: Cascade)
+  purMainId     Int?
+  purMain       PurMain?     @relation(fields: [purMainId], references: [id], onDelete: Cascade)
+  modifiedById  Int?
+  modifiedBy    EmployeeRec? @relation(fields: [modifiedById], references: [id])
+  modifiedAt    DateTime     @default(now())
+  changeDetails String
+  companyId     Int?
+  company       Company?     @relation(fields: [companyId], references: [id])
 }
 
 model AttandenceStatus {
@@ -1084,8 +1110,8 @@ model AssetRec {
   employeeRecId Int?
   employeeRec   EmployeeRec? @relation(fields: [employeeRecId], references: [id])
   details       AssetDTL[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId     Int?
+  company       Company?     @relation(fields: [companyId], references: [id])
 }
 
 model AssetMain {
@@ -1094,8 +1120,8 @@ model AssetMain {
   description String?
   totalAmount Float      @default(0)
   details     AssetDTL[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId   Int?
+  company     Company?   @relation(fields: [companyId], references: [id])
 }
 
 model AssetDTL {
@@ -1108,14 +1134,14 @@ model AssetDTL {
 }
 
 model DiscountScheme {
-  id          Int     @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   schemeName  String
   targetType  String // "PRODUCT", "CATEGORY", "CUSTOMER", or "GLOBAL"
   targetId    Int? // e.g. ProductRecId or PCatId
   rulePayload String // JSON payload defining the rules
-  isActive    Boolean @default(true)
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  isActive    Boolean  @default(true)
+  companyId   Int?
+  company     Company? @relation(fields: [companyId], references: [id])
 }
 
 model CustomerLocation {
@@ -1129,8 +1155,8 @@ model CustomerLocation {
   createdAt     DateTime       @default(now())
   sales         SaleMain[]
   saleLocations SaleLocation[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId     Int?
+  company       Company?       @relation(fields: [companyId], references: [id])
 }
 
 model SaleLocation {
@@ -1149,8 +1175,8 @@ model VendorLocation {
   address       String?
   contactPerson String?
   purchases     PurMain[]
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
+  companyId     Int?
+  company       Company?  @relation(fields: [companyId], references: [id])
 }
 
 model UserPermission {
@@ -1173,5 +1199,3 @@ model SoftwareLicense {
   isLocked  Boolean  @default(false)
   updatedAt DateTime @default(now()) @updatedAt
 }
-
-

@@ -151,5 +151,66 @@ describe('New Requirements Validation', () => {
       expect(updatedSale?.details[0].qty).toBe(1);
       expect(new Date(updatedSale!.updatedAt).getTime()).toBeGreaterThanOrEqual(new Date(oldUpdatedAt).getTime());
     });
+
+    test('In-place purchase editing modifies PurMain, PurDtl, stock, and ledger', async () => {
+      const vendor = await prisma.sellerRec.create({ data: { companyName: 'Edit Vendor Test', companyId } });
+      const prod = await prisma.productRec.create({ data: { productName: 'PurEdit Item', currentStock: 10, companyId } });
+
+      const pur = await prisma.purMain.create({
+        data: {
+          sellerRecId: vendor.id,
+          totalAmount: 500,
+          companyId,
+          details: {
+            create: [
+              { productRecId: prod.id, qty: 5, price: 100 }
+            ]
+          }
+        }
+      });
+
+      // Edit purchase invoice: increase qty to 8 (cost 100) -> new total 800
+      const editRes = await request(app)
+        .put(`/api/purchases/${pur.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          vendorId: vendor.id,
+          totalAmount: 800,
+          items: [
+            { productId: prod.id, qty: 8, costPrice: 100 }
+          ]
+        });
+
+      expect(editRes.status).toBe(200);
+      expect(editRes.body.totalAmount).toBe(800);
+
+      // Verify stock was incremented by delta +3 (10 + 3 = 13)
+      const updatedProd = await prisma.productRec.findUnique({ where: { id: prod.id } });
+      expect(updatedProd?.currentStock).toBe(13);
+    });
+
+    test('403 Forbidden is returned for unauthorized employees without allow-bill-editing', async () => {
+      const username = `staff_no_edit_${Date.now()}`;
+      const emp = await prisma.employeeRec.create({
+        data: {
+          name: 'Restricted Staff',
+          username,
+          role: 'EMPLOYEE',
+          isAdmin: false,
+          companyId,
+          password: 'pass'
+        }
+      });
+
+      const staffToken = jwt.sign({ id: emp.id, username: emp.username, role: emp.role, isAdmin: false, companyId }, JWT_SECRET);
+
+      const res = await request(app)
+        .put('/api/sales/99999')
+        .set('Authorization', `Bearer ${staffToken}`)
+        .send({ items: [] });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/Access Denied/i);
+    });
   });
 });

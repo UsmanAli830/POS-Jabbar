@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useInventory } from '../context/InventoryContext';
-import { Save, Plus, Trash2, Printer } from 'lucide-react';
+import { useSettings } from '../context/SettingsContext';
+import { useAuth } from '../context/AuthContext';
+import { Save, Plus, Trash2, Printer, Search, X } from 'lucide-react';
 import ReceiptModal from '../components/ReceiptModal';
 import type { ReceiptType, ReceiptData } from '../components/ReceiptDocument';
-import { useSettings } from '../context/SettingsContext';
 
 type CartItem = {
   productId: number;
@@ -13,6 +14,8 @@ type CartItem = {
 };
 
 const PurchaseManagement: React.FC = () => {
+  const { user, hasPermission } = useAuth();
+  const canEditBills = Boolean(user?.isAdmin || user?.role === 'ADMIN' || user?.username === 'admin' || hasPermission('purchase:edit') || hasPermission('allow-bill-editing'));
   const { products, refreshInventory } = useInventory();
   const { settings } = useSettings();
   const [vendors, setVendors] = useState<any[]>([]);
@@ -21,6 +24,9 @@ const PurchaseManagement: React.FC = () => {
   const [vendorLocations, setVendorLocations] = useState<any[]>([]);
   const [vendorLocationId, setVendorLocationId] = useState<number | ''>('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [editingPurchaseId, setEditingPurchaseId] = useState<number | null>(null);
+  const [searchPoId, setSearchPoId] = useState<string>('');
+  const [isSearching, setIsSearching] = useState<boolean>(false);
   
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -94,24 +100,83 @@ const PurchaseManagement: React.FC = () => {
   const cashPaidVal = Math.min(total, Math.max(0, parseFloat(cashPaid) || 0));
   const adjustedInBalance = Math.max(0, total - cashPaidVal);
 
+  const handleSearchPurchase = async () => {
+    if (!searchPoId.trim()) return;
+    setIsSearching(true);
+    try {
+      const cleanId = searchPoId.trim().toUpperCase().replace('PO-', '').replace('PUR-', '');
+      const res = await fetch(`http://localhost:3000/api/purchases/${cleanId}`);
+      if (res.ok) {
+        const pur = await res.json();
+        setEditingPurchaseId(pur.id);
+        setVendorId(pur.sellerRecId || '');
+        setInvoiceNumber(`PUR-${pur.id}`);
+        setCart((pur.details || []).map((d: any) => ({
+          productId: d.productRecId,
+          productName: d.productRec?.productName || `Product #${d.productRecId}`,
+          quantity: d.qty,
+          costPrice: d.costPrice || d.price || 0
+        })));
+      } else {
+        alert(`Purchase bill #${searchPoId} not found`);
+      }
+    } catch (e) {
+      alert('Error loading purchase bill');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleResetPurchase = () => {
+    setEditingPurchaseId(null);
+    setSearchPoId('');
+    setCart([]);
+    setVendorId('');
+    setInvoiceNumber('');
+    setCashPaid('0');
+  };
+
   const handleSavePurchase = async () => {
     if (!vendorId || cart.length === 0) {
       alert('Vendor and items are required');
       return;
     }
 
+    if (editingPurchaseId && !canEditBills) {
+      alert('Access Denied: You do not have permission to edit existing bills ("Allow Bill Editing / Update" permission required).');
+      return;
+    }
+
     try {
+      const token = localStorage.getItem('pos_token') || localStorage.getItem('token');
       const payload = {
         vendorId,
+        sellerRecId: vendorId,
         locationId: vendorLocationId || undefined,
         invoiceNumber,
         cashPaid: cashPaidVal,
-        items: cart
+        items: cart.map(c => ({
+          productId: c.productId,
+          productRecId: c.productId,
+          quantity: c.quantity,
+          qty: c.quantity,
+          costPrice: c.costPrice,
+          price: c.costPrice
+        }))
       };
 
-      const res = await fetch('http://localhost:3000/api/purchases', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const url = editingPurchaseId
+        ? `http://localhost:3000/api/purchases/${editingPurchaseId}`
+        : 'http://localhost:3000/api/purchases';
+
+      const method = editingPurchaseId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(payload)
       });
 
@@ -147,14 +212,11 @@ const PurchaseManagement: React.FC = () => {
             remainingBalance: data.vendorBalance !== undefined ? data.vendorBalance : undefined
           }
         });
-        setCart([]);
-        setVendorId('');
-        setInvoiceNumber('');
-        setCashPaid('0');
+        handleResetPurchase();
         await refreshInventory(); // Global synchronization
       } else {
         const err = await res.json();
-        alert('Failed: ' + err.error);
+        alert('Failed: ' + (err.error || 'Failed to save purchase'));
       }
     } catch (e) {
       alert('Network error');
@@ -163,10 +225,54 @@ const PurchaseManagement: React.FC = () => {
 
   return (
     <div className="page-wrapper" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div className="page-header" style={{ marginBottom: '16px' }}>
-        <h1 className="page-title">Vendor Purchases (Accounts Payable)</h1>
-        <p className="page-subtitle">Receive stock from vendors, update inventory, and credit their ledger.</p>
+      <div className="page-header" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 className="page-title">Vendor Purchases (Accounts Payable)</h1>
+          <p className="page-subtitle">Receive stock from vendors, update inventory, and credit their ledger.</p>
+        </div>
+
+        {/* PO SEARCH & EDIT LOOKUP BAR */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: '4px', overflow: 'hidden', background: '#ffffff' }}>
+            <input
+              type="text"
+              placeholder="Search PO / PUR # (e.g. 1)"
+              value={searchPoId}
+              onChange={e => setSearchPoId(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSearchPurchase()}
+              style={{ padding: '6px 10px', fontSize: '12px', border: 'none', outline: 'none', width: '180px' }}
+            />
+            <button
+              onClick={handleSearchPurchase}
+              disabled={isSearching}
+              style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 700 }}
+            >
+              <Search size={14} /> {isSearching ? 'Loading...' : 'Edit Bill'}
+            </button>
+          </div>
+          {editingPurchaseId && (
+            <button
+              onClick={handleResetPurchase}
+              style={{ background: '#ef4444', color: '#ffffff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 700 }}
+            >
+              <X size={14} /> Cancel Edit
+            </button>
+          )}
+        </div>
       </div>
+
+      {editingPurchaseId && (
+        <div style={{ background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '4px', padding: '8px 12px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af' }}>
+            ✏️ Editing Loaded Purchase Bill #PUR-{editingPurchaseId}
+          </span>
+          {!canEditBills && (
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#b45309', background: '#fef3c7', padding: '3px 8px', borderRadius: '3px' }}>
+              🔒 Read-Only Access: "Allow Bill Editing / Update" Permission Required
+            </span>
+          )}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: '24px', flex: 1, overflow: 'hidden' }}>
         
@@ -317,9 +423,23 @@ const PurchaseManagement: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
-              <button className="btn btn-primary" onClick={handleSavePurchase} disabled={cart.length === 0 || !vendorId} style={{ padding: '10px 24px', fontSize: '14px', fontWeight: 800 }}>
-                <Save size={16} /> Complete Purchase &amp; Print Receipt
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', marginTop: '4px' }}>
+              {editingPurchaseId && !canEditBills && (
+                <div style={{ fontSize: '11px', color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', padding: '6px 12px', borderRadius: '4px', fontWeight: 700 }}>
+                  🔒 Read-Only Access: "Allow Bill Editing / Update" Permission Required
+                </div>
+              )}
+              <button
+                className="btn btn-primary"
+                onClick={handleSavePurchase}
+                disabled={cart.length === 0 || !vendorId || (!!editingPurchaseId && !canEditBills)}
+                style={{
+                  padding: '10px 24px', fontSize: '14px', fontWeight: 800,
+                  background: (editingPurchaseId && !canEditBills) ? '#cbd5e1' : undefined,
+                  cursor: (editingPurchaseId && !canEditBills) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <Save size={16} /> {editingPurchaseId ? 'UPDATE PURCHASE & SYNC LEDGER' : 'Complete Purchase & Print Receipt'}
               </button>
             </div>
           </div>

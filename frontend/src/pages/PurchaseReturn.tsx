@@ -39,7 +39,8 @@ function calculateLineNetDebit(item: { qty: number; price: number; discPercent: 
 }
 
 const PurchaseReturn: React.FC = () => {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const canEditBills = Boolean(user?.isAdmin || user?.role === 'ADMIN' || user?.username === 'admin' || hasPermission('purchase-return:edit') || hasPermission('allow-bill-editing'));
   const { settings } = useSettings();
   const [purchaseSearchQuery, setPurchaseSearchQuery] = useState('');
   const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
@@ -180,7 +181,9 @@ const PurchaseReturn: React.FC = () => {
     
     setIsProcessing(true);
     try {
+      const token = localStorage.getItem('pos_token') || localStorage.getItem('token');
       const payload = {
+        purMainId: selectedPurchase?.id || null,
         sellerRecId: vendorId || null,
         returnDate,
         remarks,
@@ -195,7 +198,10 @@ const PurchaseReturn: React.FC = () => {
 
       const res = await fetch('http://localhost:3000/api/returns/purchases', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(payload)
       });
       
@@ -517,16 +523,21 @@ const PurchaseReturn: React.FC = () => {
           </div>
 
           <div style={{ padding: '6px', background: '#f1f5f9', borderTop: '1px solid #cbd5e1' }}>
+            {!canEditBills && (
+              <div style={{ fontSize: '10px', color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', padding: '6px', borderRadius: '3px', textAlign: 'center', marginBottom: '6px', fontWeight: 700 }}>
+                🔒 Read-Only Access: "Allow Bill Editing / Update" Permission Required
+              </div>
+            )}
             <button
               onClick={handleProcessReturn}
-              disabled={isProcessing || returnItems.length === 0}
+              disabled={isProcessing || returnItems.length === 0 || !canEditBills}
               style={{
                 width: '100%', padding: '8px', fontSize: '12px', fontWeight: 900,
-                background: returnItems.length === 0 ? '#cbd5e1' : '#dc2626',
-                color: '#ffffff', border: 'none', borderRadius: '3px', cursor: returnItems.length === 0 ? 'not-allowed' : 'pointer'
+                background: returnItems.length === 0 || !canEditBills ? '#cbd5e1' : '#dc2626',
+                color: '#ffffff', border: 'none', borderRadius: '3px', cursor: returnItems.length === 0 || !canEditBills ? 'not-allowed' : 'pointer'
               }}
             >
-              PROCESS RETURN
+              PROCESS RETURN & EDIT INVOICE
             </button>
           </div>
         </div>

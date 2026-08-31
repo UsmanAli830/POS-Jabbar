@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { getTenantFilter, getTenantCompanyId } from '../middleware/auth';
+import { getTenantFilter, getTenantCompanyId, requirePermission, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -96,8 +96,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// POST /api/returns/sales (Phase 46 — Split Settlement)
-router.post('/sales', async (req, res) => {
+// POST /api/returns/sales (Phase 46 — Split Settlement & In-Place Editing)
+router.post('/sales', requirePermission('allow-bill-editing'), async (req: AuthenticatedRequest, res) => {
   try {
     const { saleMainId, customerRecId, returnDate, remarks, items, refundMode, cashReturned, additionalCashReceived } = req.body;
 
@@ -364,10 +364,10 @@ router.post('/sales', async (req, res) => {
     res.status(500).json({ error: error.message || 'Failed to process sales return' });
   }
 });
-// POST /api/returns/purchases (Phase 46 — Split Settlement)
-router.post('/purchases', async (req, res) => {
+// POST /api/returns/purchases (Phase 46 — Split Settlement & In-Place Editing)
+router.post('/purchases', requirePermission('allow-bill-editing'), async (req: AuthenticatedRequest, res) => {
   try {
-    const { sellerRecId, returnDate, remarks, items, cashReceivedFromVendor, additionalCashPaid } = req.body;
+    const { purMainId, sellerRecId, returnDate, remarks, items, cashReceivedFromVendor, additionalCashPaid } = req.body;
 
     if (!items || items.length === 0) {
       return res.status(400).json({ error: 'No return items specified.' });
@@ -393,7 +393,7 @@ router.post('/purchases', async (req, res) => {
           totalAmount: totalRefundAmount,
           details: {
             create: items.map((i: any) => ({
-              productRecId: Number(i.productRecId),
+              productRecId: Number(i.productRecId || i.productId),
               qty: Number(i.qty),
               price: Number(i.price)
             }))
@@ -404,10 +404,52 @@ router.post('/purchases', async (req, res) => {
 
       const returnRef = `PRTN-${rtnMain.id}`;
 
-      // 2. Inventory Reduction
+      // 2. Original Purchase Invoice In-Place Modification
+      if (purMainId) {
+        const targetPurId = Number(purMainId);
+        const originalPur = await tx.purMain.findUnique({
+          where: { id: targetPurId },
+          include: { details: true }
+        });
+
+        if (originalPur) {
+          for (const item of items) {
+            const returnedQty = Math.abs(Number(item.qty));
+            const prodId = Number(item.productRecId || item.productId);
+            const matchingDtl = originalPur.details.find(d => d.productRecId === prodId);
+            if (matchingDtl) {
+              const newQty = Math.max(0, matchingDtl.qty - returnedQty);
+
+              if (newQty === 0) {
+                await tx.purDtl.delete({ where: { id: matchingDtl.id } });
+              } else {
+                await tx.purDtl.update({
+                  where: { id: matchingDtl.id },
+                  data: {
+                    qty: newQty
+                  }
+                });
+              }
+            }
+          }
+
+          // Recalculate original purchase invoice totals
+          const remainingDetails = await tx.purDtl.findMany({ where: { purMainId: targetPurId } });
+          const newNetSum = remainingDetails.reduce((sum, d) => sum + (d.qty * d.price), 0);
+
+          await tx.purMain.update({
+            where: { id: targetPurId },
+            data: {
+              totalAmount: newNetSum
+            }
+          });
+        }
+      }
+
+      // 3. Inventory Stock Reduction
       for (const item of items) {
         const qty = Math.abs(Number(item.qty));
-        const prodId = Number(item.productRecId);
+        const prodId = Number(item.productRecId || item.productId);
 
         await tx.productRec.update({
           where: { id: prodId },

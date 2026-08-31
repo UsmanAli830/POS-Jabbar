@@ -5,27 +5,73 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
+export interface SubPermissionDef {
+  key: string;
+  name: string;
+  description?: string;
+}
+
 interface ModuleDef {
   key: string;
   name: string;
   category: string;
   description: string;
+  subPermission?: SubPermissionDef;
 }
 
 const MODULE_DEFINITIONS: ModuleDef[] = [
   // Sales
-  { key: 'pos', name: 'Cash Register (POS)', category: 'Sales', description: 'Access to POS checkout register, daily cash sales, and barcode scanning' },
+  {
+    key: 'pos',
+    name: 'Cash Register (POS) - Access',
+    category: 'Sales',
+    description: 'Access to POS checkout register, daily cash sales, and barcode scanning',
+    subPermission: {
+      key: 'pos:edit',
+      name: 'Allow In-Place Bill Editing',
+      description: 'Edit & update past sales bills directly'
+    }
+  },
   { key: 'sales', name: 'Sales Invoicing & Orders', category: 'Sales', description: 'Comprehensive access to sales registers, order bookings, and invoices' },
   { key: 'bookings', name: 'Order Booking Sheet', category: 'Sales', description: 'Order taker booking sheet entry, salesman orders, and draft bills' },
-  { key: 'sales-return', name: 'Sales Returns', category: 'Sales', description: 'Process customer returns, issue refunds, and adjust sales ledgers' },
-  { key: 'allow-bill-editing', name: 'Allow Bill Editing / Update', category: 'Sales', description: 'Grant permission to edit, update, and process returns on existing invoices' },
+  {
+    key: 'sales-return',
+    name: 'Sales Returns - Access',
+    category: 'Sales',
+    description: 'Process customer returns, issue refunds, and adjust sales ledgers',
+    subPermission: {
+      key: 'sales-return:edit',
+      name: 'Allow In-Place Return Editing',
+      description: 'Modify past sales returns & adjust original invoices'
+    }
+  },
   { key: 'promotions', name: 'Promotions & Discounts', category: 'Sales', description: 'Configure promo rules, tiered pricing, and seasonal campaign discounts' },
 
   // Inventory
   { key: 'products', name: 'Product Catalog', category: 'Inventory', description: 'Product setup, price configuration, barcode generation, and variants' },
   { key: 'inventory', name: 'Inventory Control', category: 'Inventory', description: 'Live warehouse stock levels, min-reorder alerts, and physical counts' },
-  { key: 'purchases', name: 'Purchase Management', category: 'Inventory', description: 'Receive vendor stock, log purchase invoices, and vendor bill tracking' },
-  { key: 'purchase-return', name: 'Purchase Returns', category: 'Inventory', description: 'Process stock returns to vendors and debit note generation' },
+  {
+    key: 'purchases',
+    name: 'Purchase Management - Access',
+    category: 'Inventory',
+    description: 'Receive vendor stock, log purchase invoices, and vendor bill tracking',
+    subPermission: {
+      key: 'purchase:edit',
+      name: 'Allow In-Place Bill Editing',
+      description: 'Edit & update past vendor purchase GRN bills directly'
+    }
+  },
+  {
+    key: 'purchase-return',
+    name: 'Purchase Returns - Access',
+    category: 'Inventory',
+    description: 'Process stock returns to vendors and debit note generation',
+    subPermission: {
+      key: 'purchase-return:edit',
+      name: 'Allow In-Place Return Editing',
+      description: 'Modify past purchase returns & adjust supplier bills'
+    }
+  },
   { key: 'returns', name: 'Damages & Wastage', category: 'Inventory', description: 'Track damaged items, quarantine loss adjustments, and write-offs' },
   { key: 'barcode-studio', name: 'Barcode Studio', category: 'Inventory', description: 'Design, generate, and batch print barcode product labels' },
   { key: 'bulk', name: 'Bulk Price & Stock Update', category: 'Inventory', description: 'Mass update inventory prices, cost margins, and warehouse counts' },
@@ -54,8 +100,28 @@ const MODULE_DEFINITIONS: ModuleDef[] = [
   { key: 'assets-expenses', name: 'Assets & Expenses Hub', category: 'Accounts', description: 'Fixed assets register and operational expense tracking' },
 
   // Management
-  { key: 'customers', name: 'Customer Master', category: 'Manage', description: 'Register customers, assign credit limits, and delivery locations' },
-  { key: 'vendors', name: 'Vendor Master', category: 'Manage', description: 'Register suppliers, contact details, and payment credit terms' },
+  {
+    key: 'customers',
+    name: 'Customers - Access',
+    category: 'Manage',
+    description: 'Register customers, assign credit limits, and delivery locations',
+    subPermission: {
+      key: 'customer:edit',
+      name: 'Allow Profile & Balance Updates',
+      description: 'Edit customer profile details, credit limits, and addresses'
+    }
+  },
+  {
+    key: 'vendors',
+    name: 'Vendors - Access',
+    category: 'Manage',
+    description: 'Register suppliers, contact details, and payment credit terms',
+    subPermission: {
+      key: 'vendor:edit',
+      name: 'Allow Profile & Balance Updates',
+      description: 'Edit vendor profiles, company details, and credit terms'
+    }
+  },
   { key: 'employees', name: 'Employee Master', category: 'Manage', description: 'Staff directory, designations, departments, and basic wage rates' },
   { key: 'employee-portal', name: 'Employee Self-Service Portal', category: 'Manage', description: 'Employee personal dashboard, salary slips, and attendance history' },
   { key: 'change-password', name: 'Change Credentials', category: 'Manage', description: 'Staff password management and security credential updates' },
@@ -122,9 +188,11 @@ const AdminPermissions: React.FC = () => {
     setStatusMessage(null);
 
     const permsMap: Record<string, boolean> = {};
-    // Initialize default false for all standard modules
     MODULE_DEFINITIONS.forEach(m => {
       permsMap[m.key] = false;
+      if (m.subPermission) {
+        permsMap[m.subPermission.key] = false;
+      }
     });
 
     if (emp.permissions && Array.isArray(emp.permissions)) {
@@ -133,28 +201,73 @@ const AdminPermissions: React.FC = () => {
       });
     }
 
-    // If already marked as admin, enable all by default
     if (emp.isAdmin) {
       MODULE_DEFINITIONS.forEach(m => {
         permsMap[m.key] = true;
+        if (m.subPermission) {
+          permsMap[m.subPermission.key] = true;
+        }
       });
     }
+
+    // Auto-disable sub-permissions if primary permission is false
+    MODULE_DEFINITIONS.forEach(m => {
+      if (m.subPermission && !permsMap[m.key]) {
+        permsMap[m.subPermission.key] = false;
+      }
+    });
+
+    permsMap['allow-bill-editing'] = Boolean(
+      permsMap['pos:edit'] || permsMap['purchase:edit'] || permsMap['sales-return:edit'] || permsMap['purchase-return:edit']
+    );
 
     setSelectedPermissions(permsMap);
   };
 
   const handleTogglePermission = (key: string) => {
-    setSelectedPermissions(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+    setSelectedPermissions(prev => {
+      const isCurrentlyChecked = Boolean(prev[key]);
+      const nextVal = !isCurrentlyChecked;
+      const updated = { ...prev, [key]: nextVal };
+
+      const mod = MODULE_DEFINITIONS.find(m => m.key === key);
+      if (mod?.subPermission) {
+        if (!nextVal) {
+          updated[mod.subPermission.key] = false;
+        }
+      }
+
+      updated['allow-bill-editing'] = Boolean(
+        updated['pos:edit'] || updated['purchase:edit'] || updated['sales-return:edit'] || updated['purchase-return:edit']
+      );
+
+      return updated;
+    });
+  };
+
+  const handleToggleSubPermission = (subKey: string) => {
+    setSelectedPermissions(prev => {
+      const isCurrentlyChecked = Boolean(prev[subKey]);
+      const nextVal = !isCurrentlyChecked;
+      const updated = { ...prev, [subKey]: nextVal };
+
+      updated['allow-bill-editing'] = Boolean(
+        updated['pos:edit'] || updated['purchase:edit'] || updated['sales-return:edit'] || updated['purchase-return:edit']
+      );
+
+      return updated;
+    });
   };
 
   const handleSelectAll = (allowed: boolean) => {
     const updated: Record<string, boolean> = {};
     MODULE_DEFINITIONS.forEach(m => {
       updated[m.key] = allowed;
+      if (m.subPermission) {
+        updated[m.subPermission.key] = allowed;
+      }
     });
+    updated['allow-bill-editing'] = allowed;
     setSelectedPermissions(updated);
   };
 
@@ -584,50 +697,102 @@ const AdminPermissions: React.FC = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   {MODULE_DEFINITIONS.map(module => {
-                    const isChecked = selectedIsAdmin || Boolean(selectedPermissions[module.key]);
+                    const isPrimaryChecked = selectedIsAdmin || Boolean(selectedPermissions[module.key]);
+                    const hasSub = Boolean(module.subPermission);
+                    const subKey = module.subPermission?.key || '';
+                    const isSubChecked = selectedIsAdmin || (hasSub && Boolean(selectedPermissions[subKey]));
+
                     return (
                       <div 
                         key={module.key}
-                        onClick={() => {
-                          if (!selectedIsAdmin) {
-                            handleTogglePermission(module.key);
-                          }
-                        }}
                         style={{
-                          padding: '14px',
+                          padding: '12px 14px',
                           borderRadius: '8px',
-                          border: isChecked ? '1.5px solid #3b82f6' : '1.5px solid #e2e8f0',
-                          background: isChecked ? '#f0f7ff' : '#ffffff',
-                          cursor: selectedIsAdmin ? 'default' : 'pointer',
+                          border: isPrimaryChecked ? '1.5px solid #3b82f6' : '1.5px solid #e2e8f0',
+                          background: isPrimaryChecked ? '#f0f7ff' : '#ffffff',
                           display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: '12px',
+                          flexDirection: 'column',
+                          gap: '6px',
                           transition: 'all 0.15s ease'
                         }}
                       >
-                        <div style={{ marginTop: '2px', color: isChecked ? '#2563eb' : '#94a3b8' }}>
-                          {isChecked ? <CheckSquare size={18} /> : <Square size={18} />}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: isChecked ? '#1e3a8a' : '#1e293b' }}>
-                              {module.name}
-                            </span>
-                            <span style={{ 
-                              fontSize: '10px', 
-                              fontWeight: 600, 
-                              color: '#64748b', 
-                              background: '#f1f5f9', 
-                              padding: '2px 6px', 
-                              borderRadius: '4px' 
-                            }}>
-                              {module.category}
-                            </span>
+                        {/* Primary Access Header */}
+                        <div
+                          onClick={() => {
+                            if (!selectedIsAdmin) {
+                              handleTogglePermission(module.key);
+                            }
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '12px',
+                            cursor: selectedIsAdmin ? 'default' : 'pointer'
+                          }}
+                        >
+                          <div style={{ marginTop: '2px', color: isPrimaryChecked ? '#2563eb' : '#94a3b8' }}>
+                            {isPrimaryChecked ? <CheckSquare size={18} /> : <Square size={18} />}
                           </div>
-                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', lineHeight: 1.4 }}>
-                            {module.description}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 700, color: isPrimaryChecked ? '#1e3a8a' : '#1e293b' }}>
+                                {module.name}
+                              </span>
+                              <span style={{ 
+                                fontSize: '10px', 
+                                fontWeight: 600, 
+                                color: '#64748b', 
+                                background: '#f1f5f9', 
+                                padding: '2px 6px', 
+                                borderRadius: '4px' 
+                              }}>
+                                {module.category}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', lineHeight: 1.4 }}>
+                              {module.description}
+                            </div>
                           </div>
                         </div>
+
+                        {/* Indented Sub-Option */}
+                        {hasSub && module.subPermission && (
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!selectedIsAdmin && isPrimaryChecked) {
+                                handleToggleSubPermission(subKey);
+                              }
+                            }}
+                            style={{
+                              marginLeft: '30px',
+                              marginTop: '2px',
+                              padding: '5px 8px',
+                              background: isPrimaryChecked ? (isSubChecked ? '#ffffff' : '#f8fafc') : '#f1f5f9',
+                              border: `1px dashed ${isSubChecked ? '#3b82f6' : '#cbd5e1'}`,
+                              borderRadius: '6px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              cursor: selectedIsAdmin ? 'default' : (isPrimaryChecked ? 'pointer' : 'not-allowed'),
+                              opacity: isPrimaryChecked ? 1 : 0.5
+                            }}
+                          >
+                            <div style={{ color: isSubChecked ? '#2563eb' : '#94a3b8' }}>
+                              {isSubChecked ? <CheckSquare size={14} /> : <Square size={14} />}
+                            </div>
+                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                              <div style={{ fontSize: '11px', fontWeight: 700, color: isSubChecked ? '#1e3a8a' : '#475569' }}>
+                                {module.subPermission.name}
+                              </div>
+                              {module.subPermission.description && (
+                                <div style={{ fontSize: '9px', color: '#64748b' }}>
+                                  {module.subPermission.description}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

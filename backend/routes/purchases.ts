@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { getTenantFilter, getTenantCompanyId } from '../middleware/auth';
+import { getTenantFilter, getTenantCompanyId, requirePermission, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -29,6 +29,13 @@ router.post('/', async (req, res) => {
         totalPurchaseValue += (qty * cost);
       }
 
+      const lastPur = await tx.purMain.findFirst({
+        where: tenantCompanyId ? { companyId: tenantCompanyId } : {},
+        orderBy: { invoiceNumber: 'desc' },
+        select: { invoiceNumber: true }
+      });
+      const nextSeq = (lastPur && lastPur.invoiceNumber) ? lastPur.invoiceNumber + 1 : 1;
+
       // 1. Create Purchase Record
       const purchase = await tx.purMain.create({
         data: {
@@ -36,6 +43,7 @@ router.post('/', async (req, res) => {
           vendorLocationId: locationId ? Number(locationId) : null,
           totalAmount: totalPurchaseValue,
           companyId: tenantCompanyId || undefined,
+          invoiceNumber: nextSeq,
           details: {
             create: items.map((item: any) => ({
               productRecId: Number(item.productId),
@@ -132,8 +140,11 @@ router.post('/', async (req, res) => {
         currentVendorBalance = (vendor?.openingBalance || 0) + crSum - drSum;
       }
 
+      const formattedPO = `PO-${purchase.invoiceNumber || purchase.id}`;
       return {
         ...purchase,
+        invoiceNumber: formattedPO,
+        seqNumber: purchase.invoiceNumber || purchase.id,
         cashPaid: cashPaidAmount,
         balanceAdjusted: adjustedInBalance,
         vendorBalance: currentVendorBalance
@@ -169,17 +180,182 @@ router.get('/', async (req, res) => {
 // GET single purchase by ID
 router.get('/:id', async (req, res) => {
   try {
-    const purchase = await prisma.purMain.findUnique({
-      where: { id: Number(req.params.id.replace('PO-', '')) },
+    const rawParam = req.params.id.trim();
+    const cleanIdStr = rawParam.replace(/\D/g, '');
+    const numericId = cleanIdStr ? parseInt(cleanIdStr, 10) : NaN;
+    const tenantCompanyId = getTenantCompanyId(req);
+
+    const purchase = await prisma.purMain.findFirst({
+      where: {
+        AND: [
+          ...(tenantCompanyId ? [{ companyId: tenantCompanyId }] : []),
+          {
+            OR: [
+              ...(isNaN(numericId) ? [] : [{ invoiceNumber: numericId }, { id: numericId }])
+            ]
+          }
+        ]
+      },
       include: {
         sellerRec: true,
-        details: { include: { productRec: true } }
+        details: { include: { productRec: true } },
+        historyLogs: {
+          include: { modifiedBy: true },
+          orderBy: { modifiedAt: 'desc' }
+        }
       }
     });
+
     if (!purchase) return res.status(404).json({ error: 'Purchase not found' });
-    res.json(purchase);
+    res.json({
+      ...purchase,
+      invoiceNumber: `PO-${purchase.invoiceNumber || purchase.id}`,
+      rawInvoiceNumber: purchase.invoiceNumber || purchase.id
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/purchases/:id — In-place edit of existing vendor purchase / GRN bill
+router.put('/:id', requirePermission('allow-bill-editing'), async (req: AuthenticatedRequest, res) => {
+  try {
+    const paramId = String(req.params.id);
+    const rawId = paramId.replace('PO-', '').replace('PUR-', '');
+    const purId = Number(rawId);
+    const { items, vendorId, sellerRecId, totalAmount } = req.body;
+
+    if (isNaN(purId)) {
+      return res.status(400).json({ error: 'Invalid purchase invoice ID' });
+    }
+
+    const tenantFilter = getTenantFilter(req);
+    const originalPur = await prisma.purMain.findFirst({
+      where: { id: purId, ...tenantFilter },
+      include: { details: true }
+    });
+
+    if (!originalPur) {
+      return res.status(404).json({ error: 'Purchase invoice not found' });
+    }
+
+    const targetVendorId = vendorId ? Number(vendorId) : (sellerRecId ? Number(sellerRecId) : originalPur.sellerRecId);
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Calculate stock differences for all products (new vs old)
+      const oldQtyMap = new Map<number, number>();
+      for (const dtl of originalPur.details) {
+        oldQtyMap.set(dtl.productRecId, (oldQtyMap.get(dtl.productRecId) || 0) + dtl.qty);
+      }
+
+      const newQtyMap = new Map<number, number>();
+      for (const item of (items || [])) {
+        const prodId = Number(item.productRecId || item.productId || item.id);
+        const qty = Number(item.qty || item.quantity);
+        newQtyMap.set(prodId, (newQtyMap.get(prodId) || 0) + qty);
+      }
+
+      // Collect all affected product IDs
+      const allProdIds = new Set([...oldQtyMap.keys(), ...newQtyMap.keys()]);
+      for (const prodId of allProdIds) {
+        const oldQty = oldQtyMap.get(prodId) || 0;
+        const newQty = newQtyMap.get(prodId) || 0;
+        const delta = newQty - oldQty; // Purchasing more units increases currentStock by delta
+        if (delta !== 0) {
+          await tx.productRec.update({
+            where: { id: prodId },
+            data: { currentStock: { increment: delta } }
+          });
+        }
+      }
+
+      // 2. Direct line item updates: Delete existing PurDtl and recreate updated lines
+      await tx.purDtl.deleteMany({ where: { purMainId: purId } });
+
+      const newDetails = [];
+      for (const item of (items || [])) {
+        const prodId = Number(item.productRecId || item.productId || item.id);
+        const qty = Number(item.qty || item.quantity);
+        const costPrice = Number(item.costPrice || item.price || 0);
+
+        const dtl = await tx.purDtl.create({
+          data: {
+            purMainId: purId,
+            productRecId: prodId,
+            qty,
+            price: costPrice
+          }
+        });
+        newDetails.push(dtl);
+      }
+
+      // 3. Recalculate original parent record PurMain
+      const newNetSum = totalAmount !== undefined ? Number(totalAmount) : newDetails.reduce((sum, d) => sum + (d.qty * d.price), 0);
+
+      const updatedPur = await tx.purMain.update({
+        where: { id: purId },
+        data: {
+          totalAmount: newNetSum,
+          sellerRecId: targetVendorId
+        },
+        include: { details: { include: { productRec: true } }, sellerRec: true }
+      });
+
+      // 4. Double-Entry Ledger Sync: Update CashFlowDTL entries for PUR-{purId}
+      if (targetVendorId) {
+        const vendor = await tx.sellerRec.findUnique({
+          where: { id: targetVendorId },
+          include: { finHead: true }
+        });
+        if (vendor?.finHead) {
+          const vendorDtls = await tx.cashFlowDTL.findMany({
+            where: {
+              finHeadId: vendor.finHead.id,
+              cashFlowMain: { description: { contains: `PUR-${purId}` } }
+            }
+          });
+          for (const dtl of vendorDtls) {
+            if (dtl.transactionType === 'CR') {
+              await tx.cashFlowDTL.update({
+                where: { id: dtl.id },
+                data: { amount: newNetSum }
+              });
+            }
+          }
+        }
+      }
+
+      // 5. Audit Logging: Record TransactionHistoryLog entry
+      let modifiedById: number | null = null;
+      if (req.user?.id) {
+        const emp = await tx.employeeRec.findUnique({ where: { id: req.user.id } });
+        if (emp) modifiedById = req.user.id;
+      }
+
+      const oldTotal = originalPur.totalAmount;
+      const amountDiff = newNetSum - oldTotal;
+      let logDesc = `In-place edit on PUR-${purId}: Total updated from Rs. ${oldTotal.toLocaleString()} to Rs. ${newNetSum.toLocaleString()}`;
+      if (amountDiff !== 0) {
+        logDesc += `. Balance/Amount difference: Rs. ${Math.abs(amountDiff).toLocaleString()} (${amountDiff < 0 ? 'Vendor Liability Reduced' : 'Additional Vendor Dues'})`;
+      }
+      logDesc += `. Items count: ${(items || []).length}.`;
+
+      await tx.transactionHistoryLog.create({
+        data: {
+          purMainId: purId,
+          modifiedById: modifiedById,
+          changeDetails: logDesc,
+          companyId: req.user?.companyId
+        }
+      });
+
+      return updatedPur;
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('In-Place Purchase Edit Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to edit purchase invoice' });
   }
 });
 
