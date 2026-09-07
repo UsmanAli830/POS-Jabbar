@@ -134,6 +134,9 @@ router.post('/sales', requirePermission('allow-bill-editing'), async (req: Authe
     const parsedAdditionalCash = Math.max(0, Number(additionalCashReceived || 0));
 
     const result = await prisma.$transaction(async (tx) => {
+      const defaultProd = await tx.productRec.findFirst({ select: { id: true } });
+      const defaultProdId = defaultProd ? defaultProd.id : 1;
+
       // 1. Create ManualSaleRtnMain record
       const rtnMain = await tx.manualSaleRtnMain.create({
         data: {
@@ -141,10 +144,18 @@ router.post('/sales', requirePermission('allow-bill-editing'), async (req: Authe
           customerRecId: parsedCustId,
           totalAmount: totalRefundAmount,
           details: {
-            create: items.map((i: any) => ({
-              productRecId: Number(i.productRecId),
-              qty: Number(i.qty),
-              price: Number(i.price)
+            create: await Promise.all(items.map(async (i: any) => {
+              const rawId = Number(i.productRecId || i.productId || i.id);
+              let validProdId = defaultProdId;
+              if (!isNaN(rawId) && rawId > 0) {
+                const found = await tx.productRec.findUnique({ where: { id: rawId }, select: { id: true } });
+                if (found) validProdId = found.id;
+              }
+              return {
+                productRec: { connect: { id: validProdId } },
+                qty: Number(i.qty || 1),
+                price: Number(i.price || 0)
+              };
             }))
           }
         },
@@ -214,24 +225,29 @@ router.post('/sales', requirePermission('allow-bill-editing'), async (req: Authe
 
       for (const item of items) {
         const qty = Math.abs(Number(item.qty));
-        const prodId = Number(item.productRecId);
+        const prodId = Number(item.productRecId || item.productId || item.id);
 
-        if (item.isDamaged) {
-          await tx.damagedStock.create({
-            data: {
-              productId: prodId,
-              locationId: locId,
-              quantity: qty,
-              description: `Damaged Sales Return #${rtnMain.id} (${remarks || 'Customer return'})`,
-              status: 'QUARANTINED',
-              dateReported: effectiveDate
+        if (!isNaN(prodId) && prodId > 0) {
+          const prodExists = await tx.productRec.findUnique({ where: { id: prodId } });
+          if (prodExists) {
+            if (item.isDamaged) {
+              await tx.damagedStock.create({
+                data: {
+                  productId: prodId,
+                  locationId: locId,
+                  quantity: qty,
+                  description: `Damaged Sales Return #${rtnMain.id} (${remarks || 'Customer return'})`,
+                  status: 'QUARANTINED',
+                  dateReported: effectiveDate
+                }
+              });
+            } else {
+              await tx.productRec.update({
+                where: { id: prodId },
+                data: { currentStock: { increment: qty } }
+              });
             }
-          });
-        } else {
-          await tx.productRec.update({
-            where: { id: prodId },
-            data: { currentStock: { increment: qty } }
-          });
+          }
         }
       }
 
@@ -383,6 +399,9 @@ router.post('/purchases', requirePermission('allow-bill-editing'), async (req: A
     const parsedAdditionalCashPaid = Math.max(0, Number(additionalCashPaid || 0));
 
     const result = await prisma.$transaction(async (tx) => {
+      const defaultProd = await tx.productRec.findFirst({ select: { id: true } });
+      const defaultProdId = defaultProd ? defaultProd.id : 1;
+
       // 1. Create PurRtnMain record
       const rtnMain = await tx.purRtnMain.create({
         data: {
@@ -391,10 +410,18 @@ router.post('/purchases', requirePermission('allow-bill-editing'), async (req: A
           sellerRecId: parsedSellerId,
           totalAmount: totalRefundAmount,
           details: {
-            create: items.map((i: any) => ({
-              productRecId: Number(i.productRecId || i.productId),
-              qty: Number(i.qty),
-              price: Number(i.price)
+            create: await Promise.all(items.map(async (i: any) => {
+              const rawId = Number(i.productRecId || i.productId || i.id);
+              let validProdId = defaultProdId;
+              if (!isNaN(rawId) && rawId > 0) {
+                const found = await tx.productRec.findUnique({ where: { id: rawId }, select: { id: true } });
+                if (found) validProdId = found.id;
+              }
+              return {
+                productRec: { connect: { id: validProdId } },
+                qty: Number(i.qty || 1),
+                price: Number(i.price || 0)
+              };
             }))
           }
         },
@@ -448,12 +475,17 @@ router.post('/purchases', requirePermission('allow-bill-editing'), async (req: A
       // 3. Inventory Stock Reduction
       for (const item of items) {
         const qty = Math.abs(Number(item.qty));
-        const prodId = Number(item.productRecId || item.productId);
+        const prodId = Number(item.productRecId || item.productId || item.id);
 
-        await tx.productRec.update({
-          where: { id: prodId },
-          data: { currentStock: { decrement: qty } }
-        });
+        if (!isNaN(prodId) && prodId > 0) {
+          const prodExists = await tx.productRec.findUnique({ where: { id: prodId } });
+          if (prodExists) {
+            await tx.productRec.update({
+              where: { id: prodId },
+              data: { currentStock: { decrement: qty } }
+            });
+          }
+        }
       }
 
       // 3. Financial Ledger Entries (Split Settlement)

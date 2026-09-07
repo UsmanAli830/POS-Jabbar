@@ -126,6 +126,22 @@ router.put('/:type/:id', async (req, res) => {
       case 'category':
         updatedRecord = await prisma.category.update({ where: { id: recordId }, data: { name: trimmedName } });
         break;
+      case 'zone':
+        updatedRecord = await prisma.zone.update({ where: { id: recordId }, data: { name: trimmedName } });
+        break;
+      case 'route':
+        updatedRecord = await prisma.route.update({ where: { id: recordId }, data: { name: trimmedName } });
+        break;
+      case 'vanRec':
+        updatedRecord = await prisma.vanRec.update({ where: { id: recordId }, data: { name: trimmedName } });
+        break;
+      case 'area':
+      case 'areaRecord':
+        updatedRecord = await prisma.areaRecord.update({ where: { id: recordId }, data: { name: trimmedName } });
+        break;
+      case 'loadType':
+        updatedRecord = await prisma.loadType.update({ where: { id: recordId }, data: { name: trimmedName } });
+        break;
       default:
         return res.status(400).json({ error: 'Invalid master data type' });
     }
@@ -171,6 +187,27 @@ router.delete('/:type/:id', async (req, res) => {
       case 'company':
         // If it's a tenant company, check if it's the primary company
         deletedRecord = await prisma.company.delete({ where: { id: recordId } });
+        break;
+      case 'zone':
+        await prisma.customerRec.updateMany({ where: { zoneId: recordId }, data: { zoneId: null } });
+        deletedRecord = await prisma.zone.delete({ where: { id: recordId } });
+        break;
+      case 'route':
+        await prisma.customerRec.updateMany({ where: { routeId: recordId }, data: { routeId: null } });
+        deletedRecord = await prisma.route.delete({ where: { id: recordId } });
+        break;
+      case 'vanRec':
+        await prisma.customerRec.updateMany({ where: { vanRecId: recordId }, data: { vanRecId: null } });
+        deletedRecord = await prisma.vanRec.delete({ where: { id: recordId } });
+        break;
+      case 'area':
+      case 'areaRecord':
+        await prisma.customerRec.updateMany({ where: { areaRecordId: recordId }, data: { areaRecordId: null } });
+        deletedRecord = await prisma.areaRecord.delete({ where: { id: recordId } });
+        break;
+      case 'loadType':
+        await prisma.customerRec.updateMany({ where: { loadTypeId: recordId }, data: { loadTypeId: null } });
+        deletedRecord = await prisma.loadType.delete({ where: { id: recordId } });
         break;
       default:
         return res.status(400).json({ error: 'Invalid master data type' });

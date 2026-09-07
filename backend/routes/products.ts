@@ -82,9 +82,7 @@ router.get('/search', async (req, res) => {
 // GET next available product code
 router.get('/next-code', async (req, res) => {
   try {
-    const tenantFilter = getTenantFilter(req);
     const products = await prisma.productRec.findMany({
-      where: tenantFilter,
       select: { productCode: true }
     });
 

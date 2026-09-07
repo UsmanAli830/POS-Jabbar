@@ -39,7 +39,10 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
-    const targetGate = req.body.gate || req.body.loginGate;
+    let targetGate = req.body.gate || req.body.loginGate;
+    if (targetGate === 'COMPANY_ADMIN') {
+      targetGate = 'ADMIN';
+    }
 
     let role: 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' = 'EMPLOYEE';
     if (employee.role === 'SUPER_ADMIN' || (employee.username === 'superadmin' && !employee.companyId)) {

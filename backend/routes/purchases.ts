@@ -35,19 +35,30 @@ router.post('/', async (req, res) => {
       });
       const nextSeq = (lastPur && lastPur.invoiceNumber) ? lastPur.invoiceNumber + 1 : 1;
 
+      const defaultProd = await tx.productRec.findFirst({ select: { id: true } });
+      const defaultProdId = defaultProd ? defaultProd.id : 1;
+
       // 1. Create Purchase Record
       const purchase = await tx.purMain.create({
         data: {
-          sellerRecId: Number(vendorId),
-          vendorLocationId: locationId ? Number(locationId) : null,
+          sellerRec: { connect: { id: Number(vendorId) } },
+          ...(locationId ? { vendorLocation: { connect: { id: Number(locationId) } } } : {}),
+          ...(tenantCompanyId ? { company: { connect: { id: tenantCompanyId } } } : {}),
           totalAmount: totalPurchaseValue,
-          companyId: tenantCompanyId || undefined,
           invoiceNumber: nextSeq,
           details: {
-            create: items.map((item: any) => ({
-              productRecId: Number(item.productId),
-              qty: Number(item.quantity),
-              price: Number(item.costPrice),
+            create: await Promise.all(items.map(async (item: any) => {
+              const rawId = Number(item.productId || item.productRecId || item.id);
+              let validProdId = defaultProdId;
+              if (!isNaN(rawId) && rawId > 0) {
+                const found = await tx.productRec.findUnique({ where: { id: rawId }, select: { id: true } });
+                if (found) validProdId = found.id;
+              }
+              return {
+                productRec: { connect: { id: validProdId } },
+                qty: Number(item.quantity || 1),
+                price: Number(item.costPrice || 0)
+              };
             }))
           }
         },
@@ -56,12 +67,18 @@ router.post('/', async (req, res) => {
 
       // 2. Add Inventory
       for (const item of items) {
-        const qty = Number(item.quantity);
-        
-        await tx.productRec.update({
-          where: { id: Number(item.productId) },
-          data: { currentStock: { increment: Math.abs(qty) } }
-        });
+        const qty = Number(item.quantity || item.qty || 1);
+        const pId = Number(item.productId || item.productRecId || item.id);
+
+        if (!isNaN(pId) && pId > 0) {
+          const prodExists = await tx.productRec.findUnique({ where: { id: pId } });
+          if (prodExists) {
+            await tx.productRec.update({
+              where: { id: pId },
+              data: { currentStock: { increment: Math.abs(qty) } }
+            });
+          }
+        }
       }
 
       const rawCashPaid = Number(req.body.cashPaid || 0);

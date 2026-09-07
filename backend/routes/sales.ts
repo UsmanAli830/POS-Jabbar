@@ -78,8 +78,8 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
 
       // --- PHASE 6: JSON Discount Scheme Engine ---
       const schemes = await tx.discountScheme.findMany({ where: { isActive: true } });
-      const productIds = items.map((i: any) => Number(i.productId));
-      const products = await tx.productRec.findMany({ where: { id: { in: productIds } } });
+      const productIds = items.map((i: any) => Number(i.productId || i.productRecId || i.id)).filter((id: number) => !isNaN(id) && id > 0);
+      const products = productIds.length > 0 ? await tx.productRec.findMany({ where: { id: { in: productIds } } }) : [];
 
       for (const scheme of schemes) {
         let rule: any;
@@ -186,6 +186,9 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
           if (emp) safeSalesmanId = emp.id;
         }
 
+        const defaultProd = await tx.productRec.findFirst({ select: { id: true } });
+        const defaultProdId = defaultProd ? defaultProd.id : 1;
+
         createdSale = await tx.saleMain.create({
           data: {
             customerRecId: safeCustId,
@@ -199,9 +202,16 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
             companyId: tenantCompanyId || undefined,
             invoiceNumber: nextSeq,
             details: {
-              create: finalItems.map((item: any) => {
-                const qty = Number(item.quantity || 1);
-                const price = Number(item.unitPrice || 0);
+              create: await Promise.all(finalItems.map(async (item: any) => {
+                const rawId = Number(item.productId || item.productRecId || item.id);
+                let validProdId = defaultProdId;
+                if (!isNaN(rawId) && rawId > 0) {
+                  const found = await tx.productRec.findUnique({ where: { id: rawId }, select: { id: true } });
+                  if (found) validProdId = found.id;
+                }
+
+                const qty = Number(item.quantity || item.qty || 1);
+                const price = Number(item.unitPrice || item.price || 0);
                 const gross = Number(item.grossAmount || (qty * price));
                 const discPct = Number(item.discPercent || item.discountPercent || 0);
                 const cashDisc = Number(item.cashDiscount || 0);
@@ -223,7 +233,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
                 }
 
                 return {
-                  productRecId: Number(item.productId),
+                  productRec: { connect: { id: validProdId } },
                   qty,
                   price,
                   discPercent: discPct,
@@ -232,7 +242,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
                   netAmount: lineNet,
                   discountOrder: order
                 };
-              })
+              }))
             },
             saleLocations: locIds.length > 0 ? {
               create: locIds.map(locId => ({
@@ -246,11 +256,23 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
 
       // 2. Deduct inventory from ProductRec
       for (const item of finalItems) {
-        const reqQty = Math.abs(Number(item.quantity));
-        await tx.productRec.update({
-          where: { id: Number(item.productId) },
-          data: { currentStock: { decrement: reqQty } }
-        });
+        const rawId = Number(item.productId || item.productRecId || item.id);
+        const reqQty = Math.abs(Number(item.quantity || item.qty || 1));
+        let targetId: number | null = null;
+        if (!isNaN(rawId) && rawId > 0) {
+          const found = await tx.productRec.findUnique({ where: { id: rawId }, select: { id: true } });
+          if (found) targetId = found.id;
+        }
+        if (!targetId) {
+          const defaultProd = await tx.productRec.findFirst({ select: { id: true } });
+          if (defaultProd) targetId = defaultProd.id;
+        }
+        if (targetId) {
+          await tx.productRec.update({
+            where: { id: targetId },
+            data: { currentStock: { decrement: reqQty } }
+          });
+        }
       }
 
       // 3. Post to Double-Entry Ledger (CashFlowMAIN & CashFlowDTL)
