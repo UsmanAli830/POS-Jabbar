@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../db';
 import { requirePermission, getTenantFilter } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const parseDates = (req: any) => {
   const start = req.query.startDate ? new Date(req.query.startDate as string) : new Date(0);
@@ -1073,6 +1072,7 @@ router.get('/statement', async (req, res) => {
 // 10. Balance Sheet Report Engine
 router.get('/balance-sheet', requirePermission('balance-sheet'), async (req, res) => {
   try {
+    const tenantFilter = getTenantFilter(req);
     const asOfDate = req.query.asOfDate ? new Date(req.query.asOfDate as string) : new Date();
 
     // 1. Cash & Bank Balances
@@ -1139,7 +1139,7 @@ router.get('/balance-sheet', requirePermission('balance-sheet'), async (req, res
     overpaymentsDetail.sort((a, b) => b.balance - a.balance);
 
     // 3. Inventory Valuation
-    const products = await prisma.productRec.findMany();
+    const products = await prisma.productRec.findMany({ where: tenantFilter });
     let inventoryValuation = 0;
     products.forEach(p => {
       inventoryValuation += (p.currentStock || 0) * (p.costPrice || 0);

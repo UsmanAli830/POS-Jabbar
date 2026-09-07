@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../db';
 import { getTenantFilter, getTenantCompanyId } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Helper to calculate Customer Live Balance
 async function getCustomerLiveBalance(customerId: number) {

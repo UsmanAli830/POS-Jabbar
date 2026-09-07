@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../db';
 
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'pos_secret_key_2024';
 
 export interface AuthenticatedRequest extends Request {
@@ -49,9 +48,12 @@ export function getTenantCompanyId(req: Request): number | null {
     } catch (e) {}
   }
   if (!user) return null;
+  if (user.companyId !== undefined && user.companyId !== null) {
+    return user.companyId;
+  }
   const isSuper = user.role === 'SUPER_ADMIN' || user.username === 'superadmin' || user.username === 'admin';
   if (isSuper) return null;
-  return user.companyId !== undefined && user.companyId !== null ? user.companyId : null;
+  return null;
 }
 
 export function getTenantFilter(req: Request): { companyId?: number } {
@@ -64,11 +66,11 @@ export function getTenantFilter(req: Request): { companyId?: number } {
     } catch (e) {}
   }
   if (!user) return { companyId: -1 };
-  const isSuper = user.role === 'SUPER_ADMIN' || user.username === 'superadmin' || user.username === 'admin';
-  if (isSuper) return {};
   if (user.companyId !== undefined && user.companyId !== null) {
     return { companyId: user.companyId };
   }
+  const isSuper = user.role === 'SUPER_ADMIN' || user.username === 'superadmin' || user.username === 'admin';
+  if (isSuper) return {};
   return { companyId: -1 };
 }
 

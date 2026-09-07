@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../db';
 import { getTenantFilter } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // GET /api/ledger/customer/:id?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 router.get('/customer/:id', async (req, res) => {

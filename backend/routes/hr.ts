@@ -1,10 +1,9 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../db';
 import bcrypt from 'bcryptjs';
 import { getTenantFilter, getTenantCompanyId, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // GET all posts
 router.get('/posts', async (req, res) => {

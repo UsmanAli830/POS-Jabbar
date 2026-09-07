@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../db';
 import { getTenantCompanyId } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // POST /api/master-data-post - Create master data record
 router.post('/', async (req, res) => {

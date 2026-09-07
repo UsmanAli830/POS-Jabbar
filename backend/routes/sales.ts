@@ -1,10 +1,9 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../db';
 import { authenticate, AuthenticatedRequest, getTenantFilter, getTenantCompanyId, requirePermission } from '../middleware/auth';
 
 // Phase 47: Sales route with multi-location support
 const router = Router();
-const prisma = new PrismaClient();
 
 // GET /api/sales/next-invoice-number
 router.get('/next-invoice-number', authenticate, async (req: AuthenticatedRequest, res) => {
@@ -167,11 +166,31 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       } else {
         // Standard Sale
         const finalTotalAmount = Number(total || parsedTotal);
+
+        let safeCustId: number | null = null;
+        if (customerId) {
+          const cust = await tx.customerRec.findUnique({ where: { id: Number(customerId) } });
+          if (cust) safeCustId = cust.id;
+        }
+
+        let safeCustLocId: number | null = null;
+        const rawLocId = locIds.length > 0 ? locIds[0] : (customerLocationId ? Number(customerLocationId) : null);
+        if (rawLocId) {
+          const loc = await tx.customerLocation.findUnique({ where: { id: rawLocId } });
+          if (loc) safeCustLocId = loc.id;
+        }
+
+        let safeSalesmanId: number | null = null;
+        if (validSalesmanId) {
+          const emp = await tx.employeeRec.findUnique({ where: { id: validSalesmanId } });
+          if (emp) safeSalesmanId = emp.id;
+        }
+
         createdSale = await tx.saleMain.create({
           data: {
-            customerRecId: customerId ? Number(customerId) : null,
-            customerLocationId: locIds.length > 0 ? locIds[0] : (customerLocationId ? Number(customerLocationId) : null),
-            salesmanId: validSalesmanId,
+            customerRecId: safeCustId,
+            customerLocationId: safeCustLocId,
+            salesmanId: safeSalesmanId,
             totalAmount: finalTotalAmount,
             grossAmount: Number(subtotal || 0),
             discountAmount: Number(discountAmount || 0) + backendDiscountAmount,

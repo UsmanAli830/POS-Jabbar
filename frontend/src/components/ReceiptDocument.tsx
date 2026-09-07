@@ -1,5 +1,7 @@
 import React, { forwardRef } from 'react';
 
+export type ReceiptType = 'sale' | 'purchase' | 'sales-return' | 'purchase-return' | 'payment' | 'salary';
+
 export type HistoryLogItem = {
   id?: number;
   modifiedAt?: string | Date;

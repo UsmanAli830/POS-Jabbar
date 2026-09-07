@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../db';
 import { getTenantFilter, getTenantCompanyId, requirePermission, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // POST process a customer return
 router.post('/', async (req, res) => {

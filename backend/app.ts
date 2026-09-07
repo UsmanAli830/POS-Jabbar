@@ -35,12 +35,15 @@ import backupRouter from './routes/backup';
 import { checkLicense } from './middleware/license';
 import { getTenantFilter } from './middleware/auth';
 import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
+import prisma from './db';
 
+const existingDbUrl = process.env.DATABASE_URL;
 dotenv.config();
+if (existingDbUrl) {
+  process.env.DATABASE_URL = existingDbUrl;
+}
 
 const app = express();
-const prisma = new PrismaClient();
 
 // Multi-Device LAN & Localhost CORS configuration
 app.use(cors({
@@ -129,8 +132,8 @@ app.get('/api/master-data', async (req, res) => {
     ]);
 
     // Format categories & subCategories directly from tenant-scoped pCats/subCats
-    const categories = pCats.map(c => ({ id: c.id, name: c.name }));
-    const subCategories = newSubCats.map(s => ({ id: s.id, name: s.name, pCatId: s.pCatId }));
+    const categories = pCats.map((c: any) => ({ id: c.id, name: c.name }));
+    const subCategories = newSubCats.map((s: any) => ({ id: s.id, name: s.name, pCatId: s.pCatId }));
 
     res.json({
       categories,

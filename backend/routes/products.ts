@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../db';
 import { getTenantFilter, getTenantCompanyId } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // GET all products
 router.get('/', async (req, res) => {
