@@ -82,8 +82,17 @@ const POSRegister: React.FC = () => {
   const [creditTillDate, setCreditTillDate] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
 
-  // Feature 2 & 3: Global Price Engine & Delivery Charges State
+  // Feature 2 & 3: Global Price Engine & Delivery Logistics State
   const [cartPriceMode, setCartPriceMode] = useState<'RETAIL' | 'WHOLESALE'>('RETAIL');
+  const [isDelivery, setIsDelivery] = useState<boolean>(false);
+  const [driverName, setDriverName] = useState<string>('');
+  const [driverPhone, setDriverPhone] = useState<string>('');
+  const [driverCnic, setDriverCnic] = useState<string>('');
+  const [driverAddress, setDriverAddress] = useState<string>('');
+  const [driverLicenseNo, setDriverLicenseNo] = useState<string>('');
+  const [vehicleNo, setVehicleNo] = useState<string>('');
+  const [vehicleType, setVehicleType] = useState<string>('');
+  const [deliveryAddress, setDeliveryAddress] = useState<string>('');
   const [deliveryCharges, setDeliveryCharges] = useState<number | ''>('');
   const [labourCharges, setLabourCharges] = useState<number | ''>('');
   const [deliveryRemarks, setDeliveryRemarks] = useState<string>('');
@@ -1027,8 +1036,18 @@ const POSRegister: React.FC = () => {
         subtotal: grossTotal,
         discountAmount: itemDiscountsTotal + (eligibleAmount - netValue),
         taxAmount: 0,
-        deliveryCharges: delChargesVal,
+        isDelivery,
+        driverName: isDelivery ? driverName : undefined,
+        driverPhone: isDelivery ? driverPhone : undefined,
+        driverCnic: isDelivery ? driverCnic : undefined,
+        driverAddress: isDelivery ? driverAddress : undefined,
+        driverLicenseNo: isDelivery ? driverLicenseNo : undefined,
+        vehicleNo: isDelivery ? vehicleNo : undefined,
+        vehicleType: isDelivery ? vehicleType : undefined,
+        vehicleCharges: delChargesVal,
         labourCharges: labChargesVal,
+        deliveryCharges: delChargesVal,
+        deliveryAddress: isDelivery ? (deliveryAddress || undefined) : undefined,
         deliveryRemarks: deliveryRemarks || undefined,
         total: totalAmount,
         paymentMethod,
@@ -1079,6 +1098,15 @@ const POSRegister: React.FC = () => {
             bookerName: booker || undefined,
             paymentMethod,
             refNumber: finalInvNumber,
+            isDelivery,
+            driverName: isDelivery ? driverName : undefined,
+            driverPhone: isDelivery ? driverPhone : undefined,
+            driverCnic: isDelivery ? driverCnic : undefined,
+            driverAddress: isDelivery ? driverAddress : undefined,
+            driverLicenseNo: isDelivery ? driverLicenseNo : undefined,
+            vehicleNo: isDelivery ? vehicleNo : undefined,
+            vehicleType: isDelivery ? vehicleType : undefined,
+            deliveryAddress: isDelivery ? (deliveryAddress || custName) : undefined,
             items: cart.map((item, idx) => ({
               sr: idx + 1,
               name: item.productName,
@@ -1090,6 +1118,8 @@ const POSRegister: React.FC = () => {
             })),
             grossAmount: grossTotal,
             totalDiscount: itemDiscountsTotal + (eligibleAmount - netValue),
+            deliveryCharges: delChargesVal,
+            labourCharges: labChargesVal,
             netPayable: totalAmount,
             amountReceived: Number(cashPaid) || totalAmount,
             changeReturn: changeDue > 0 ? changeDue : 0,
@@ -1901,6 +1931,101 @@ const POSRegister: React.FC = () => {
               />
             </div>
 
+            {/* DELIVERY & DISPATCH LOGISTICS CARD */}
+            <div style={{ background: '#f8fafc', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label style={{ fontSize: '10px', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={isDelivery}
+                    onChange={e => setIsDelivery(e.target.checked)}
+                    style={{ width: '13px', height: '13px', accentColor: '#0284c7' }}
+                  />
+                  <span>🚚 Requires Customer Delivery</span>
+                </label>
+                {isDelivery && (
+                  <span style={{ fontSize: '8px', background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: '8px', fontWeight: 700 }}>
+                    Gate Pass Active
+                  </span>
+                )}
+              </div>
+
+              {isDelivery && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '2px', paddingTop: '4px', borderTop: '1px dashed #cbd5e1' }}>
+                  {/* Driver Info */}
+                  <div style={{ fontSize: '8px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Driver Identity & Contact</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                    <input
+                      type="text"
+                      value={driverName}
+                      onChange={e => setDriverName(e.target.value)}
+                      placeholder="Driver Name (e.g. Muhammad Rashid)"
+                      style={{ width: '100%', height: '22px', padding: '2px 4px', fontSize: '9px', border: '1px solid #cbd5e1', borderRadius: '2px', outline: 'none' }}
+                    />
+                    <input
+                      type="text"
+                      value={driverPhone}
+                      onChange={e => setDriverPhone(e.target.value)}
+                      placeholder="Phone (0300-1234567)"
+                      style={{ width: '100%', height: '22px', padding: '2px 4px', fontSize: '9px', border: '1px solid #cbd5e1', borderRadius: '2px', outline: 'none' }}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                    <input
+                      type="text"
+                      value={driverCnic}
+                      onChange={e => setDriverCnic(e.target.value)}
+                      placeholder="Driver CNIC (35201-7654321-1)"
+                      style={{ width: '100%', height: '22px', padding: '2px 4px', fontSize: '9px', border: '1px solid #cbd5e1', borderRadius: '2px', outline: 'none' }}
+                    />
+                    <input
+                      type="text"
+                      value={driverLicenseNo}
+                      onChange={e => setDriverLicenseNo(e.target.value)}
+                      placeholder="License #"
+                      style={{ width: '100%', height: '22px', padding: '2px 4px', fontSize: '9px', border: '1px solid #cbd5e1', borderRadius: '2px', outline: 'none' }}
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={driverAddress}
+                    onChange={e => setDriverAddress(e.target.value)}
+                    placeholder="Driver Home Address (House #, Street...)"
+                    style={{ width: '100%', height: '22px', padding: '2px 4px', fontSize: '9px', border: '1px solid #cbd5e1', borderRadius: '2px', outline: 'none' }}
+                  />
+
+                  {/* Vehicle Info */}
+                  <div style={{ fontSize: '8px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px', marginTop: '2px' }}>Vehicle Details</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                    <input
+                      type="text"
+                      value={vehicleNo}
+                      onChange={e => setVehicleNo(e.target.value)}
+                      placeholder="Vehicle No (LEA-1234)"
+                      style={{ width: '100%', height: '22px', padding: '2px 4px', fontSize: '9px', border: '1px solid #cbd5e1', borderRadius: '2px', outline: 'none' }}
+                    />
+                    <input
+                      type="text"
+                      value={vehicleType}
+                      onChange={e => setVehicleType(e.target.value)}
+                      placeholder="Type (Suzuki / Mazda Truck)"
+                      style={{ width: '100%', height: '22px', padding: '2px 4px', fontSize: '9px', border: '1px solid #cbd5e1', borderRadius: '2px', outline: 'none' }}
+                    />
+                  </div>
+
+                  {/* Drop-off Destination */}
+                  <div style={{ fontSize: '8px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px', marginTop: '2px' }}>Drop-off Destination Address</div>
+                  <input
+                    type="text"
+                    value={deliveryAddress}
+                    onChange={e => setDeliveryAddress(e.target.value)}
+                    placeholder="Drop-off Address (Plot/Sector/City...)"
+                    style={{ width: '100%', height: '22px', padding: '2px 4px', fontSize: '9px', border: '1px solid #cbd5e1', borderRadius: '2px', outline: 'none' }}
+                  />
+                </div>
+              )}
+            </div>
+
             {/* DELIVERY & LABOUR CHARGES */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
               <div style={{ background: '#ffffff', padding: '3px', border: '1px solid #e2e8f0', borderRadius: '3px' }}>
@@ -1940,10 +2065,16 @@ const POSRegister: React.FC = () => {
               />
             </div>
 
-            {/* TOTAL AMOUNT */}
-            <div style={{ background: '#0f172a', color: '#ffffff', padding: '4px', borderRadius: '3px', textAlign: 'center' }}>
+            {/* TOTAL AMOUNT WITH LOGISTICS ITEMIZATION */}
+            <div style={{ background: '#0f172a', color: '#ffffff', padding: '6px', borderRadius: '3px', textAlign: 'center' }}>
               <div style={{ fontSize: '8px', textTransform: 'uppercase', opacity: 0.8, fontWeight: 700 }}>Total Payable</div>
               <div style={{ fontSize: '16px', fontWeight: 900, color: '#38bdf8' }}>Rs. {totalAmount.toLocaleString()}</div>
+              {(delChargesVal > 0 || labChargesVal > 0) && (
+                <div style={{ fontSize: '8px', color: '#94a3b8', marginTop: '2px', display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                  {delChargesVal > 0 && <span>Freight: +Rs. {delChargesVal.toLocaleString()}</span>}
+                  {labChargesVal > 0 && <span>Labour: +Rs. {labChargesVal.toLocaleString()}</span>}
+                </div>
+              )}
             </div>
 
             {/* FINANCIAL HEAD DROPDOWN */}

@@ -18,7 +18,17 @@ export type ReceiptData = {
   receiptFooter?: string;
   historyLogs?: HistoryLogItem[];
 
-  // Sale
+  // Sale & Delivery Logistics
+  isDelivery?: boolean;
+  driverName?: string;
+  driverPhone?: string;
+  driverCnic?: string;
+  driverAddress?: string;
+  driverLicenseNo?: string;
+  vehicleNo?: string;
+  vehicleType?: string;
+  deliveryAddress?: string;
+  deliveryStatus?: string;
   invoiceNumber?: string;
   date?: string | Date;
   customerName?: string;
@@ -246,6 +256,44 @@ const SaleReceipt: React.FC<{ d: ReceiptData }> = ({ d }) => (
       <div style={{ ...s.totalRow, borderTop: '1.5px dashed #475569', marginTop: '6px', paddingTop: '6px' }}>
         <span style={{ ...s.totalLabel, fontWeight: 700 }}>Client's Live Remaining Balance</span>
         <span style={{ ...s.totalValue, fontWeight: 800, fontSize: '13px' }}>{fmt(d.remainingBalance)}</span>
+      </div>
+    )}
+
+    {/* DELIVERY & GATE PASS DISPATCH BLOCK */}
+    {(d.isDelivery || d.driverName || d.vehicleNo || (d.deliveryCharges ?? 0) > 0 || (d.labourCharges ?? 0) > 0) && (
+      <div style={{ marginTop: '14px', border: '1.5px solid #0f172a', borderRadius: '4px', overflow: 'hidden', background: '#ffffff' }}>
+        <div style={{ background: '#0f172a', color: '#ffffff', padding: '6px', textAlign: 'center', fontSize: '11px', fontWeight: 800, letterSpacing: '0.5px' }}>
+          DELIVERY & GATE PASS DISPATCH
+        </div>
+        <div style={{ padding: '8px', fontSize: '10px', color: '#0f172a', lineHeight: 1.5 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '3px' }}>
+            <div><strong>Driver Name:</strong> {d.driverName || 'N/A'}</div>
+            <div><strong>Phone:</strong> {d.driverPhone || 'N/A'}</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '3px' }}>
+            <div><strong>Driver CNIC:</strong> {d.driverCnic || 'N/A'}</div>
+            <div><strong>Vehicle No:</strong> {d.vehicleNo || 'N/A'} {d.vehicleType ? `(${d.vehicleType})` : ''}</div>
+          </div>
+          {d.driverAddress && (
+            <div style={{ marginBottom: '3px' }}><strong>Driver Addr:</strong> {d.driverAddress}</div>
+          )}
+          <div style={{ marginBottom: '4px' }}><strong>Drop-off Dest:</strong> {d.deliveryAddress || d.customerName || 'N/A'}</div>
+          
+          <div style={{ borderTop: '1px dashed #64748b', marginTop: '6px', paddingTop: '6px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Vehicle Charges:</span>
+              <span style={{ fontWeight: 700 }}>Rs. {(d.deliveryCharges || 0).toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Labour Charges:</span>
+              <span style={{ fontWeight: 700 }}>Rs. {(d.labourCharges || 0).toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '11px', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid #0f172a' }}>
+              <span>Total Logistics:</span>
+              <span style={{ color: '#0284c7' }}>Rs. {((d.deliveryCharges || 0) + (d.labourCharges || 0)).toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
       </div>
     )}
   </>

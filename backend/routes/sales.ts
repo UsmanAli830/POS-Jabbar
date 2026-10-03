@@ -196,6 +196,9 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
         const defaultProd = await tx.productRec.findFirst({ select: { id: true } });
         const defaultProdId = defaultProd ? defaultProd.id : 1;
 
+        const isDeliveryVal = Boolean(req.body.isDelivery || delCharges > 0 || req.body.vehicleCharges > 0 || req.body.vehicleNo || req.body.driverName);
+        const vehicleChargesVal = Number(req.body.vehicleCharges || delCharges || 0);
+
         createdSale = await tx.saleMain.create({
           data: {
             customerRecId: safeCustId,
@@ -209,6 +212,17 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
             deliveryCharges: delCharges,
             labourCharges: labCharges,
             deliveryRemarks: deliveryRemarks ? String(deliveryRemarks).trim() : null,
+            isDelivery: isDeliveryVal,
+            driverName: req.body.driverName ? String(req.body.driverName).trim() : null,
+            driverPhone: req.body.driverPhone ? String(req.body.driverPhone).trim() : null,
+            driverCnic: req.body.driverCnic ? String(req.body.driverCnic).trim() : null,
+            driverAddress: req.body.driverAddress ? String(req.body.driverAddress).trim() : null,
+            driverLicenseNo: req.body.driverLicenseNo ? String(req.body.driverLicenseNo).trim() : null,
+            vehicleNo: req.body.vehicleNo ? String(req.body.vehicleNo).trim() : null,
+            vehicleType: req.body.vehicleType ? String(req.body.vehicleType).trim() : null,
+            vehicleCharges: vehicleChargesVal,
+            deliveryAddress: req.body.deliveryAddress ? String(req.body.deliveryAddress).trim() : null,
+            deliveryStatus: req.body.deliveryStatus || 'DELIVERED',
             companyId: tenantCompanyId || undefined,
             invoiceNumber: nextSeq,
             details: {

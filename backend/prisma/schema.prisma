@@ -908,6 +908,17 @@ model SaleMain {
   deliveryCharges    Float                   @default(0)
   labourCharges      Float                   @default(0)
   deliveryRemarks    String?
+  isDelivery         Boolean                 @default(false)
+  driverName         String?
+  driverPhone        String?
+  driverCnic         String?
+  driverAddress      String?
+  driverLicenseNo    String?
+  vehicleNo          String?
+  vehicleType        String?
+  vehicleCharges     Float                   @default(0)
+  deliveryAddress    String?
+  deliveryStatus     String                  @default("DELIVERED")
   details            SaleInvDtl[]
   saleLocations      SaleLocation[]
   historyLogs        TransactionHistoryLog[]
