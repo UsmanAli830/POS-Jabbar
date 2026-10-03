@@ -30,6 +30,9 @@ export type ReceiptData = {
   items?: ReceiptItem[];
   grossAmount?: number;
   totalDiscount?: number;
+  deliveryCharges?: number;
+  labourCharges?: number;
+  deliveryRemarks?: string;
   netPayable?: number;
   amountReceived?: number;
   changeReturn?: number;
@@ -85,6 +88,7 @@ export type ReceiptItem = {
   sr?: number;
   name: string;
   qty: number;
+  unitType?: string;
   rate?: number;
   price?: number;
   discPercent?: number;
@@ -195,6 +199,7 @@ const SaleReceipt: React.FC<{ d: ReceiptData }> = ({ d }) => (
     {d.bookerName && <MetaRow label="Order Booker" value={d.bookerName} />}
     <MetaRow label="Payment Method" value={d.paymentMethod || 'Cash'} />
     {d.refNumber && <MetaRow label="Reference #" value={d.refNumber} />}
+    {d.deliveryRemarks && <MetaRow label="Delivery Notes" value={d.deliveryRemarks} />}
     <div style={s.sep} />
     <table style={s.table}>
       <thead>
@@ -212,8 +217,8 @@ const SaleReceipt: React.FC<{ d: ReceiptData }> = ({ d }) => (
         {(d.items || []).map((item, i) => (
           <tr key={i} style={{ pageBreakInside: 'avoid' }}>
             <td style={s.td}>{item.sr || i + 1}</td>
-            <td style={s.td}>{item.name}</td>
-            <td style={s.tdRight}>{item.qty}</td>
+            <td style={s.td}>{item.name} {item.unitType === 'CARTON' ? '(Carton)' : ''}</td>
+            <td style={s.tdRight}>{item.qty} {item.unitType === 'CARTON' ? 'Ctn' : 'Pcs'}</td>
             <td style={s.tdRight}>{fmt(item.rate ?? item.price)}</td>
             <td style={s.tdRight}>{item.discPercent ?? 0}%</td>
             <td style={s.tdRight}>{fmt(item.cashDisc ?? item.cashDiscount ?? 0)}</td>
@@ -226,6 +231,12 @@ const SaleReceipt: React.FC<{ d: ReceiptData }> = ({ d }) => (
     <div style={s.totalRow}><span style={s.totalLabel}>Gross Amount (Subtotal)</span><span style={s.totalValue}>{fmt(d.grossAmount)}</span></div>
     {(d.totalDiscount ?? 0) > 0 && (
       <div style={s.totalRow}><span style={s.totalLabel}>Total Discounts (Item + Bill Level)</span><span style={{ ...s.totalValue, color: '#dc2626' }}>-{fmt(d.totalDiscount)}</span></div>
+    )}
+    {(d.deliveryCharges ?? 0) > 0 && (
+      <div style={s.totalRow}><span style={s.totalLabel}>Freight / Delivery Charges</span><span style={{ ...s.totalValue, color: '#0284c7' }}>+{fmt(d.deliveryCharges)}</span></div>
+    )}
+    {(d.labourCharges ?? 0) > 0 && (
+      <div style={s.totalRow}><span style={s.totalLabel}>Labour / Handling Charges</span><span style={{ ...s.totalValue, color: '#0284c7' }}>+{fmt(d.labourCharges)}</span></div>
     )}
     <div style={s.grandTotal}><span>Net Payable</span><span>{fmt(d.netPayable)}</span></div>
     {d.amountReceived !== undefined && <div style={s.totalRow}><span style={s.totalLabel}>Cash Received</span><span style={s.totalValue}>{fmt(d.amountReceived)}</span></div>}

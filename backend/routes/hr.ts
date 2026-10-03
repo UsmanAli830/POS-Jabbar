@@ -94,9 +94,9 @@ const fetchEmployeesHandler = async (req: any, res: any) => {
     const tenantFilter = getTenantFilter(req);
     const employees = await prisma.employeeRec.findMany({
       where: {
-        role: { notIn: ['SUPER_ADMIN', 'ADMIN'] },
-        username: { notIn: ['admin', 'superadmin'] },
-        ...tenantFilter
+        role: { not: 'SUPER_ADMIN' },
+        username: { not: 'superadmin' },
+        ...(tenantFilter.companyId ? { companyId: tenantFilter.companyId } : {})
       },
       include: {
         postRec: true,
@@ -780,9 +780,9 @@ router.get('/attendance', async (req, res) => {
 
     const employees = await prisma.employeeRec.findMany({
       where: {
-        role: { notIn: ['SUPER_ADMIN', 'ADMIN'] },
-        username: { notIn: ['admin', 'superadmin'] },
-        ...tenantFilter
+        role: { not: 'SUPER_ADMIN' },
+        username: { not: 'superadmin' },
+        ...(tenantFilter.companyId ? { companyId: tenantFilter.companyId } : {})
       },
       include: { postRec: true }
     });

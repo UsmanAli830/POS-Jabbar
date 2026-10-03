@@ -138,7 +138,8 @@ function parseProductData(body: any) {
   // Convert strings to numbers if they exist
   const numericFields = [
     'retailPrice', 'costPrice', 'wholeSalePrice', 'tradePrice', 'currentStock', 'minLevel', 'dangerLevel',
-    'pCatId', 'subCatId', 'pTypeId', 'weightUnitId', 'formulaId', 'companyId', 'brandId', 'activeTypeId'
+    'pCatId', 'subCatId', 'pTypeId', 'weightUnitId', 'formulaId', 'companyId', 'brandId', 'activeTypeId',
+    'pcsPerCarton', 'cartonCostPrice', 'cartonRetailPrice', 'cartonWsPrice'
   ];
   
   numericFields.forEach(field => {
@@ -159,7 +160,8 @@ function parseProductData(body: any) {
   const allowedFields = [
     'productCode', 'barCode', 'productName', 
     'retailPrice', 'costPrice', 'wholeSalePrice', 'tradePrice', 'currentStock', 'minLevel', 'dangerLevel',
-    'pCatId', 'subCatId', 'pTypeId', 'weightUnitId', 'formulaId', 'companyId', 'activeTypeId'
+    'pCatId', 'subCatId', 'pTypeId', 'weightUnitId', 'formulaId', 'companyId', 'activeTypeId',
+    'pcsPerCarton', 'cartonCostPrice', 'cartonRetailPrice', 'cartonWsPrice'
   ];
 
   const filteredData: any = {};

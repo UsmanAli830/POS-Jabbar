@@ -16,7 +16,13 @@ type Product = {
   barCode: string;
   productName: string;
   salePrice: number;
+  retailPrice?: number;
+  wholeSalePrice?: number;
   costPrice?: number;
+  pcsPerCarton?: number;
+  cartonCostPrice?: number;
+  cartonRetailPrice?: number;
+  cartonWsPrice?: number;
   packSize: number;
   baseUom: string;
   bulkUom: string;
@@ -27,6 +33,9 @@ type Product = {
 
 type CartItem = Product & {
   cartQuantity: number;
+  unitType: 'PIECE' | 'CARTON';
+  priceMode: 'RETAIL' | 'WHOLESALE';
+  cartonQty: number;
   rate: number;
   grossAmount: number;
   discountPercent: number;
@@ -72,6 +81,12 @@ const POSRegister: React.FC = () => {
   const [saleDate, setSaleDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [creditTillDate, setCreditTillDate] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
+
+  // Feature 2 & 3: Global Price Engine & Delivery Charges State
+  const [cartPriceMode, setCartPriceMode] = useState<'RETAIL' | 'WHOLESALE'>('RETAIL');
+  const [deliveryCharges, setDeliveryCharges] = useState<number | ''>('');
+  const [labourCharges, setLabourCharges] = useState<number | ''>('');
+  const [deliveryRemarks, setDeliveryRemarks] = useState<string>('');
 
   // Right Pane Financial State
   const [lossPercent, setLossPercent] = useState<number | ''>(0);
@@ -564,6 +579,51 @@ const POSRegister: React.FC = () => {
     return groups;
   }, [finHeads]);
 
+  const getProductRate = (prod: any, unitType: 'PIECE' | 'CARTON', mode: 'RETAIL' | 'WHOLESALE') => {
+    const pcs = Math.max(1, Number(prod.pcsPerCarton || 1));
+    if (unitType === 'CARTON') {
+      if (mode === 'WHOLESALE') {
+        return Number(prod.cartonWsPrice || (prod.wholeSalePrice ? prod.wholeSalePrice * pcs : (prod.retailPrice || prod.salePrice || 0) * pcs));
+      }
+      return Number(prod.cartonRetailPrice || (prod.retailPrice ? prod.retailPrice * pcs : (prod.salePrice || 0) * pcs));
+    } else {
+      if (mode === 'WHOLESALE') {
+        return Number(prod.wholeSalePrice || prod.retailPrice || prod.salePrice || 0);
+      }
+      return Number(prod.retailPrice || prod.salePrice || 0);
+    }
+  };
+
+  const handleToggleGlobalPriceMode = (newMode: 'RETAIL' | 'WHOLESALE') => {
+    setCartPriceMode(newMode);
+    setCart(prev => prev.map(item => {
+      const unitType = item.unitType || 'PIECE';
+      const rate = getProductRate(item, unitType, newMode);
+      const gross = item.cartQuantity * rate;
+      const discPct = item.discountPercent || 0;
+      const cashDisc = item.cashDiscount || 0;
+      let net = gross;
+      if (item.discountOrder === 'CASH_FIRST') {
+        const sub = Math.max(0, gross - cashDisc);
+        net = Math.max(0, sub - (sub * (discPct / 100)));
+      } else if (item.discountOrder === 'PERCENT_FIRST') {
+        const sub = Math.max(0, gross - (gross * (discPct / 100)));
+        net = Math.max(0, sub - cashDisc);
+      } else {
+        if (discPct > 0) net = Math.max(0, gross - (gross * (discPct / 100)));
+        else if (cashDisc > 0) net = Math.max(0, gross - cashDisc);
+      }
+      return {
+        ...item,
+        priceMode: newMode,
+        rate,
+        grossAmount: gross,
+        discountAmount: gross - net,
+        netAmount: net
+      };
+    }));
+  };
+
   // Cart Operations
   const addProductToCart = (prod: Product) => {
     if (!allowNegativeStock && (prod.currentStock <= 0)) {
@@ -572,7 +632,7 @@ const POSRegister: React.FC = () => {
     }
 
     setCart(prev => {
-      const existingIdx = prev.findIndex(item => item.id === prod.id);
+      const existingIdx = prev.findIndex(item => item.id === prod.id && item.unitType === 'PIECE');
       if (existingIdx > -1) {
         const updated = [...prev];
         const item = updated[existingIdx];
@@ -599,6 +659,7 @@ const POSRegister: React.FC = () => {
         updated[existingIdx] = {
           ...item,
           cartQuantity: newQty,
+          cartonQty: item.unitType === 'CARTON' ? newQty : 0,
           totalQty: (newQty + promo.bonus) * (item.packSize || 1),
           grossAmount: gross,
           discountPercent: discPct,
@@ -613,7 +674,9 @@ const POSRegister: React.FC = () => {
         return updated;
       }
 
-      const rate = prod.salePrice || 0;
+      const unitType: 'PIECE' | 'CARTON' = 'PIECE';
+      const priceMode: 'RETAIL' | 'WHOLESALE' = cartPriceMode;
+      const rate = getProductRate(prod, unitType, priceMode);
       const packSize = prod.packSize || 1;
       const gross = rate * 1;
       const promo = evaluatePromoForCartItem(prod, 1);
@@ -628,6 +691,9 @@ const POSRegister: React.FC = () => {
         {
           ...prod,
           cartQuantity: 1,
+          unitType,
+          priceMode,
+          cartonQty: 0,
           totalQty: (1 + promo.bonus) * packSize,
           rate,
           grossAmount: gross,
@@ -651,6 +717,9 @@ const POSRegister: React.FC = () => {
       if (i !== index) return item;
       const updated = { ...item, [field]: value };
 
+      const unitType = (field === 'unitType' ? value : (item.unitType || 'PIECE')) as 'PIECE' | 'CARTON';
+      const priceMode = (field === 'priceMode' ? value : (item.priceMode || cartPriceMode)) as 'RETAIL' | 'WHOLESALE';
+
       let qty = Number(updated.cartQuantity);
       if (isNaN(qty) || qty <= 0) qty = 1;
 
@@ -665,7 +734,11 @@ const POSRegister: React.FC = () => {
       }
 
       let rate = Number(updated.rate);
-      if (isNaN(rate) || rate < 0) rate = 0;
+      if (field === 'unitType' || field === 'priceMode') {
+        rate = getProductRate(item, unitType, priceMode);
+      } else if (isNaN(rate) || rate < 0) {
+        rate = 0;
+      }
 
       let gross = Number(updated.grossAmount);
       if (field === 'grossAmount') {
@@ -731,7 +804,10 @@ const POSRegister: React.FC = () => {
 
       return {
         ...updated,
+        unitType,
+        priceMode,
         cartQuantity: qty,
+        cartonQty: unitType === 'CARTON' ? qty : 0,
         totalQty,
         rate,
         grossAmount: gross,
@@ -781,6 +857,9 @@ const POSRegister: React.FC = () => {
 
         return {
           ...prod,
+          unitType: item.unitType || 'PIECE',
+          priceMode: item.priceMode || cartPriceMode,
+          cartonQty: item.cartonQty || 0,
           cartQuantity: qty,
           totalQty: (qty + (promo.bonus || 0)) * (prod.packSize || 1),
           rate,
@@ -878,7 +957,9 @@ const POSRegister: React.FC = () => {
       return gross;
     }
   }, [eligibleAmount, lossPercent, cashDiscount, discountOrder]);
-  const totalAmount = useMemo(() => netValue + (Number(expense) || 0), [netValue, expense]);
+  const delChargesVal = Number(deliveryCharges) || 0;
+  const labChargesVal = Number(labourCharges) || 0;
+  const totalAmount = useMemo(() => netValue + (Number(expense) || 0) + delChargesVal + labChargesVal, [netValue, expense, delChargesVal, labChargesVal]);
 
   const isCreditSale = paymentMethod === 'Credit / Unpaid';
   const cashPaid = isCreditSale ? (Number(paymentReceived) || 0) : totalAmount;
@@ -927,6 +1008,8 @@ const POSRegister: React.FC = () => {
           productName: item.productName,
           quantity: item.cartQuantity,
           qty: item.cartQuantity,
+          unitType: item.unitType || 'PIECE',
+          cartonQty: item.unitType === 'CARTON' ? item.cartQuantity : 0,
           unitPrice: item.rate,
           price: item.rate,
           totalPrice: item.netAmount,
@@ -944,6 +1027,9 @@ const POSRegister: React.FC = () => {
         subtotal: grossTotal,
         discountAmount: itemDiscountsTotal + (eligibleAmount - netValue),
         taxAmount: 0,
+        deliveryCharges: delChargesVal,
+        labourCharges: labChargesVal,
+        deliveryRemarks: deliveryRemarks || undefined,
         total: totalAmount,
         paymentMethod,
         paymentReceived: cashPaid,
@@ -1386,12 +1472,54 @@ const POSRegister: React.FC = () => {
 
           {/* MAIN SALES DETAIL GRID (CENTER PANE) */}
           <div style={{ flex: 1, overflow: 'auto', position: 'relative' }} ref={autocompleteRef}>
+            {/* PRICE MODE TOGGLE BAR */}
+            <div style={{ background: '#0f172a', padding: '6px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Price Mode:</span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleGlobalPriceMode('RETAIL')}
+                  style={{
+                    padding: '3px 12px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    borderRadius: '4px',
+                    border: 'none',
+                    background: cartPriceMode === 'RETAIL' ? '#3b82f6' : '#1e293b',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                    boxShadow: cartPriceMode === 'RETAIL' ? '0 2px 8px rgba(59, 130, 246, 0.4)' : 'none'
+                  }}
+                >
+                  🔘 Retail Price
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleGlobalPriceMode('WHOLESALE')}
+                  style={{
+                    padding: '3px 12px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    borderRadius: '4px',
+                    border: 'none',
+                    background: cartPriceMode === 'WHOLESALE' ? '#10b981' : '#1e293b',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                    boxShadow: cartPriceMode === 'WHOLESALE' ? '0 2px 8px rgba(16, 185, 129, 0.4)' : 'none'
+                  }}
+                >
+                  ⚪ Wholesale Price
+                </button>
+              </div>
+            </div>
+
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'left' }}>
               <thead style={{ position: 'sticky', top: 0, background: '#1e293b', color: '#ffffff', zIndex: 10 }}>
                 <tr>
                   <th style={{ padding: '6px 4px', width: '35px', textAlign: 'center', borderRight: '1px solid #334155' }}>Sr#</th>
                   <th style={{ padding: '6px 6px', width: '90px', borderRight: '1px solid #334155' }}>Bar Code</th>
                   <th style={{ padding: '6px 6px', borderRight: '1px solid #334155' }}>Item Name (Search / Select)</th>
+                  <th style={{ padding: '6px 4px', width: '65px', textAlign: 'center', borderRight: '1px solid #334155' }}>Unit</th>
                   <th style={{ padding: '6px 4px', width: '55px', textAlign: 'center', borderRight: '1px solid #334155' }}>Qty</th>
                   <th style={{ padding: '6px 4px', width: '55px', textAlign: 'center', borderRight: '1px solid #334155' }}>Total Qty</th>
                   <th style={{ padding: '6px 6px', width: '75px', textAlign: 'right', borderRight: '1px solid #334155' }}>Rate (Rs)</th>
@@ -1465,6 +1593,25 @@ const POSRegister: React.FC = () => {
                           ))}
                         </div>
                       )}
+                    </td>
+
+                    <td style={{ padding: '2px 4px', textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => updateCartRow(idx, 'unitType', item.unitType === 'CARTON' ? 'PIECE' : 'CARTON')}
+                        style={{
+                          padding: '2px 6px',
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          borderRadius: '3px',
+                          border: item.unitType === 'CARTON' ? '1px solid #10b981' : '1px solid #94a3b8',
+                          background: item.unitType === 'CARTON' ? '#d1fae5' : '#f1f5f9',
+                          color: item.unitType === 'CARTON' ? '#047857' : '#475569',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {item.unitType === 'CARTON' ? 'Carton' : 'Piece'}
+                      </button>
                     </td>
 
                     <td style={{ padding: '2px 4px' }}>
@@ -1741,7 +1888,7 @@ const POSRegister: React.FC = () => {
 
             {/* EXPENSE */}
             <div style={{ background: '#ffffff', padding: '3px 6px', border: '1px solid #e2e8f0', borderRadius: '3px' }}>
-              <label style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '1px' }}>Expense (Freight/Misc)</label>
+              <label style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '1px' }}>Expense (Misc)</label>
               <input
                 type="number"
                 min="0"
@@ -1750,6 +1897,45 @@ const POSRegister: React.FC = () => {
                 onFocus={e => e.target.select()}
                 onBlur={e => { if (e.target.value === '') setExpense(0); }}
                 placeholder="0.00"
+                style={{ width: '100%', height: '20px', padding: '2px 4px', fontSize: '10px', border: '1px solid #cbd5e1', borderRadius: '2px', outline: 'none' }}
+              />
+            </div>
+
+            {/* DELIVERY & LABOUR CHARGES */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+              <div style={{ background: '#ffffff', padding: '3px', border: '1px solid #e2e8f0', borderRadius: '3px' }}>
+                <label style={{ fontSize: '9px', fontWeight: 700, color: '#0284c7', display: 'block', marginBottom: '1px' }}>Freight / Delivery (Rs)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={deliveryCharges}
+                  onChange={e => setDeliveryCharges(e.target.value === '' ? '' : Number(e.target.value))}
+                  onFocus={e => e.target.select()}
+                  placeholder="0.00"
+                  style={{ width: '100%', height: '20px', padding: '2px 4px', fontSize: '10px', fontWeight: 700, border: '1px solid #0284c7', borderRadius: '2px', outline: 'none' }}
+                />
+              </div>
+              <div style={{ background: '#ffffff', padding: '3px', border: '1px solid #e2e8f0', borderRadius: '3px' }}>
+                <label style={{ fontSize: '9px', fontWeight: 700, color: '#0284c7', display: 'block', marginBottom: '1px' }}>Labour / Handling (Rs)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={labourCharges}
+                  onChange={e => setLabourCharges(e.target.value === '' ? '' : Number(e.target.value))}
+                  onFocus={e => e.target.select()}
+                  placeholder="0.00"
+                  style={{ width: '100%', height: '20px', padding: '2px 4px', fontSize: '10px', fontWeight: 700, border: '1px solid #0284c7', borderRadius: '2px', outline: 'none' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ background: '#ffffff', padding: '3px', border: '1px solid #e2e8f0', borderRadius: '3px' }}>
+              <label style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '1px' }}>Delivery Remarks / Notes</label>
+              <input
+                type="text"
+                value={deliveryRemarks}
+                onChange={e => setDeliveryRemarks(e.target.value)}
+                placeholder="Driver, vehicle #, notes..."
                 style={{ width: '100%', height: '20px', padding: '2px 4px', fontSize: '10px', border: '1px solid #cbd5e1', borderRadius: '2px', outline: 'none' }}
               />
             </div>

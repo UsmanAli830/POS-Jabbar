@@ -10,7 +10,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'pos_secret_key_2024';
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
-    const { username, password, loginGate } = req.body;
+    const { username, password } = req.body;
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
     }
@@ -39,11 +39,6 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
-    let targetGate = req.body.gate || req.body.loginGate;
-    if (targetGate === 'COMPANY_ADMIN') {
-      targetGate = 'ADMIN';
-    }
-
     let role: 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' = 'EMPLOYEE';
     if (employee.role === 'SUPER_ADMIN' || (employee.username === 'superadmin' && !employee.companyId)) {
       role = 'SUPER_ADMIN';
@@ -51,42 +46,6 @@ router.post('/login', async (req, res) => {
       role = 'ADMIN';
     } else {
       role = 'EMPLOYEE';
-    }
-
-    // --- STRICT 3-GATE AUTHORIZATION CHECKS ---
-    if (targetGate === 'SUPER_ADMIN') {
-      if (role !== 'SUPER_ADMIN') {
-        return res.status(403).json({
-          error: 'Access Denied: This portal is strictly reserved for the Software Supplier (Super Admin).'
-        });
-      }
-    } else if (targetGate === 'ADMIN') {
-      if (role !== 'ADMIN') {
-        if (role === 'SUPER_ADMIN') {
-          return res.status(403).json({
-            error: 'Access Denied: Super Administrators must sign in through the Super Admin Portal.'
-          });
-        }
-        return res.status(403).json({
-          error: 'Access Denied: This portal is strictly for Company Administrators. Staff members must sign in via the Employee Portal.'
-        });
-      }
-    } else if (targetGate === 'EMPLOYEE') {
-      if (role !== 'EMPLOYEE') {
-        if (role === 'SUPER_ADMIN') {
-          return res.status(403).json({
-            error: 'Access Denied: Super Administrators must sign in through the Super Admin Portal.'
-          });
-        }
-        return res.status(403).json({
-          error: 'Access Denied: This portal is strictly for Store Staff & Cashiers. Company Admins must sign in via the Company Admin Portal.'
-        });
-      }
-    } else {
-      // No gate specified — block login entirely to prevent silent bypass
-      return res.status(400).json({
-        error: 'Login gate is required. Please select a portal (SUPER_ADMIN, ADMIN, or EMPLOYEE).'
-      });
     }
 
     // --- CLIENT COMPANY LICENSE LOCKOUT CHECK ---

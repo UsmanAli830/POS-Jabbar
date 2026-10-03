@@ -590,6 +590,11 @@ model ProductRec {
   barCode     String? @unique
   productName String
 
+  pcsPerCarton       Int     @default(1)
+  cartonCostPrice    Float?
+  cartonRetailPrice  Float?
+  cartonWsPrice      Float?
+
   retailPrice    Float @default(0)
   costPrice      Float @default(0)
   wholeSalePrice Float @default(0)
@@ -858,6 +863,8 @@ model PurDtl {
   productRec   ProductRec @relation(fields: [productRecId], references: [id])
   qty          Float
   price        Float
+  unitType     String     @default("PIECE")
+  cartonQty    Float?     @default(0)
 }
 
 model PurRtnMain {
@@ -898,6 +905,9 @@ model SaleMain {
   expenseAmount      Float                   @default(0)
   paymentReceived    Float                   @default(0)
   returnAmount       Float                   @default(0)
+  deliveryCharges    Float                   @default(0)
+  labourCharges      Float                   @default(0)
+  deliveryRemarks    String?
   details            SaleInvDtl[]
   saleLocations      SaleLocation[]
   historyLogs        TransactionHistoryLog[]
@@ -916,6 +926,8 @@ model SaleInvDtl {
   productRec    ProductRec @relation(fields: [productRecId], references: [id])
   qty           Float
   price         Float
+  unitType      String     @default("PIECE")
+  cartonQty     Float?     @default(0)
   discPercent   Float      @default(0)
   cashDiscount  Float      @default(0)
   grossAmount   Float      @default(0)
@@ -1087,6 +1099,7 @@ model EmpSalary {
 model EmpAdvanceSalary {
   id            Int         @id @default(autoincrement())
   date          DateTime    @default(now())
+  createdAt     DateTime    @default(now())
   employeeRecId Int
   employeeRec   EmployeeRec @relation(fields: [employeeRecId], references: [id], onDelete: Cascade)
   amount        Float       @default(0)

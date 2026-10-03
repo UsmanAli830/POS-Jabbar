@@ -26,6 +26,10 @@ const ProductManagement: React.FC = () => {
     productCode: '',
     barCode: '',
     productName: '',
+    pcsPerCarton: '1',
+    cartonCostPrice: '',
+    cartonRetailPrice: '',
+    cartonWsPrice: '',
     retailPrice: '',
     wholeSalePrice: '',
     tradePrice: '',
@@ -164,6 +168,7 @@ const ProductManagement: React.FC = () => {
     const nextCode = await fetchNextProductCode();
     setFormData({
       productCode: nextCode, barCode: '', productName: '',
+      pcsPerCarton: '1', cartonCostPrice: '', cartonRetailPrice: '', cartonWsPrice: '',
       retailPrice: '', wholeSalePrice: '', tradePrice: '', costPrice: '', 
       currentStock: '', minLevel: '', dangerLevel: '',
       pCatId: '', subCatId: '', pTypeId: '', weightUnitId: '', formulaId: '', companyId: '', activeTypeId: ''
@@ -187,6 +192,10 @@ const ProductManagement: React.FC = () => {
     try {
       const payload = {
         ...formData,
+        pcsPerCarton: parseInt(formData.pcsPerCarton as string) || 1,
+        cartonCostPrice: formData.cartonCostPrice !== '' ? parseFloat(formData.cartonCostPrice as string) : null,
+        cartonRetailPrice: formData.cartonRetailPrice !== '' ? parseFloat(formData.cartonRetailPrice as string) : null,
+        cartonWsPrice: formData.cartonWsPrice !== '' ? parseFloat(formData.cartonWsPrice as string) : null,
         retailPrice: parseFloat(formData.retailPrice as string) || 0,
         wholeSalePrice: parseFloat(formData.wholeSalePrice as string) || 0,
         tradePrice: parseFloat(formData.tradePrice as string) || 0,
@@ -232,6 +241,7 @@ const ProductManagement: React.FC = () => {
   const resetForm = () => {
     setFormData({
       productCode: '', barCode: '', productName: '',
+      pcsPerCarton: '1', cartonCostPrice: '', cartonRetailPrice: '', cartonWsPrice: '',
       retailPrice: '', wholeSalePrice: '', tradePrice: '', costPrice: '', 
       currentStock: '', minLevel: '', dangerLevel: '',
       pCatId: '', subCatId: '', pTypeId: '', weightUnitId: '', formulaId: '', companyId: '', activeTypeId: ''
@@ -291,12 +301,27 @@ const ProductManagement: React.FC = () => {
     { headerCheckboxSelection: true, checkboxSelection: true, width: 50, pinned: 'left' },
     { field: 'productCode', headerName: 'PCode', width: 110 },
     { field: 'barCode', headerName: 'BarCode', width: 130 },
-    { field: 'productName', headerName: 'Product Name', width: 220, flex: 1 },
-    { field: 'pCat.name', headerName: 'Category', width: 130 },
-    { field: 'currentStock', headerName: 'Current Stock', width: 130 },
-    { field: 'costPrice', headerName: 'Cost Price', width: 120, cellRenderer: (p: any) => `Rs. ${(p.value||0).toLocaleString()}` },
-    { field: 'retailPrice', headerName: 'Retail Price', width: 120, cellRenderer: (p: any) => `Rs. ${(p.value||0).toLocaleString()}` },
-    { field: 'wholeSalePrice', headerName: 'WS Price', width: 120, cellRenderer: (p: any) => `Rs. ${(p.value||0).toLocaleString()}` }
+    { field: 'productName', headerName: 'Product Name', width: 200, flex: 1 },
+    { field: 'pCat.name', headerName: 'Category', width: 120 },
+    { 
+      field: 'currentStock', 
+      headerName: 'Stock Summary', 
+      width: 230,
+      cellRenderer: (p: any) => {
+        const total = Number(p.value || 0);
+        const pcsPerCarton = Math.max(1, Number(p.data?.pcsPerCarton || 1));
+        if (pcsPerCarton > 1) {
+          const cartons = Math.floor(total / pcsPerCarton);
+          const loose = total % pcsPerCarton;
+          return `Total: ${total} Pcs (${cartons} Ctn, ${loose} Pcs)`;
+        }
+        return `Total: ${total} Pcs`;
+      }
+    },
+    { field: 'pcsPerCarton', headerName: 'Pcs/Ctn', width: 90 },
+    { field: 'costPrice', headerName: 'Cost (Piece)', width: 110, cellRenderer: (p: any) => `Rs. ${(p.value||0).toLocaleString()}` },
+    { field: 'retailPrice', headerName: 'Retail (Piece)', width: 110, cellRenderer: (p: any) => `Rs. ${(p.value||0).toLocaleString()}` },
+    { field: 'wholeSalePrice', headerName: 'WS (Piece)', width: 110, cellRenderer: (p: any) => `Rs. ${(p.value||0).toLocaleString()}` }
   ]);
 
   const defaultColDef = useMemo(() => ({ sortable: true, filter: true, resizable: true }), []);
@@ -310,6 +335,10 @@ const ProductManagement: React.FC = () => {
       productCode: pd.productCode || '',
       barCode: pd.barCode || '',
       productName: pd.productName || '',
+      pcsPerCarton: pd.pcsPerCarton?.toString() || '1',
+      cartonCostPrice: pd.cartonCostPrice?.toString() || '',
+      cartonRetailPrice: pd.cartonRetailPrice?.toString() || '',
+      cartonWsPrice: pd.cartonWsPrice?.toString() || '',
       retailPrice: pd.retailPrice?.toString() || '',
       wholeSalePrice: pd.wholeSalePrice?.toString() || '',
       tradePrice: pd.tradePrice?.toString() || '',
@@ -584,21 +613,115 @@ const ProductManagement: React.FC = () => {
 
           {activeFormTab === 'PRICING' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div className="form-group">
-                <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Cost Price (Rs.)</label>
-                <input name="costPrice" type="number" step="0.01" value={formData.costPrice} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Pcs Per Carton</label>
+                  <input 
+                    name="pcsPerCarton" 
+                    type="number" 
+                    min="1"
+                    value={formData.pcsPerCarton} 
+                    onChange={e => {
+                      const pcs = parseInt(e.target.value) || 1;
+                      const cost = parseFloat(formData.costPrice as string) || 0;
+                      const retail = parseFloat(formData.retailPrice as string) || 0;
+                      const ws = parseFloat(formData.wholeSalePrice as string) || 0;
+                      setFormData(prev => ({
+                        ...prev,
+                        pcsPerCarton: e.target.value,
+                        cartonCostPrice: prev.cartonCostPrice ? prev.cartonCostPrice : (cost * pcs).toString(),
+                        cartonRetailPrice: prev.cartonRetailPrice ? prev.cartonRetailPrice : (retail * pcs).toString(),
+                        cartonWsPrice: prev.cartonWsPrice ? prev.cartonWsPrice : (ws * pcs).toString()
+                      }));
+                    }} 
+                    className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" 
+                    disabled={formMode === 'VIEW' || formMode === 'DISABLED'} 
+                  />
+                </div>
               </div>
-              <div className="form-group">
-                <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Retail Price (Rs.)</label>
-                <input name="retailPrice" type="number" step="0.01" value={formData.retailPrice} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#0088cc', marginTop: '4px' }}>INDIVIDUAL PIECE PRICES</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div className="form-group">
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Piece Cost Price (Rs.)</label>
+                  <input 
+                    name="costPrice" 
+                    type="number" 
+                    step="0.01" 
+                    value={formData.costPrice} 
+                    onChange={e => {
+                      const cost = parseFloat(e.target.value) || 0;
+                      const pcs = parseInt(formData.pcsPerCarton as string) || 1;
+                      setFormData(prev => ({
+                        ...prev,
+                        costPrice: e.target.value,
+                        cartonCostPrice: (cost * pcs).toString()
+                      }));
+                    }} 
+                    className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" 
+                    disabled={formMode === 'VIEW' || formMode === 'DISABLED'} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Piece Retail Price (Rs.)</label>
+                  <input 
+                    name="retailPrice" 
+                    type="number" 
+                    step="0.01" 
+                    value={formData.retailPrice} 
+                    onChange={e => {
+                      const retail = parseFloat(e.target.value) || 0;
+                      const pcs = parseInt(formData.pcsPerCarton as string) || 1;
+                      setFormData(prev => ({
+                        ...prev,
+                        retailPrice: e.target.value,
+                        cartonRetailPrice: (retail * pcs).toString()
+                      }));
+                    }} 
+                    className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" 
+                    disabled={formMode === 'VIEW' || formMode === 'DISABLED'} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Piece Wholesale Price (Rs.)</label>
+                  <input 
+                    name="wholeSalePrice" 
+                    type="number" 
+                    step="0.01" 
+                    value={formData.wholeSalePrice} 
+                    onChange={e => {
+                      const ws = parseFloat(e.target.value) || 0;
+                      const pcs = parseInt(formData.pcsPerCarton as string) || 1;
+                      setFormData(prev => ({
+                        ...prev,
+                        wholeSalePrice: e.target.value,
+                        cartonWsPrice: (ws * pcs).toString()
+                      }));
+                    }} 
+                    className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" 
+                    disabled={formMode === 'VIEW' || formMode === 'DISABLED'} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Piece Trade Price (Rs.)</label>
+                  <input name="tradePrice" type="number" step="0.01" value={formData.tradePrice} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+                </div>
               </div>
-              <div className="form-group">
-                <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Wholesale Price (Rs.)</label>
-                <input name="wholeSalePrice" type="number" step="0.01" value={formData.wholeSalePrice} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
-              </div>
-              <div className="form-group">
-                <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Trade Price (Rs.)</label>
-                <input name="tradePrice" type="number" step="0.01" value={formData.tradePrice} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#059669', marginTop: '8px' }}>CARTON PACKAGING PRICES (AUTO-CALCULATED WITH OVERRIDE)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                <div className="form-group">
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Carton Cost (Rs.)</label>
+                  <input name="cartonCostPrice" type="number" step="0.01" value={formData.cartonCostPrice} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+                </div>
+                <div className="form-group">
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Carton Retail (Rs.)</label>
+                  <input name="cartonRetailPrice" type="number" step="0.01" value={formData.cartonRetailPrice} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+                </div>
+                <div className="form-group">
+                  <label className="desktop-label" style={{ fontWeight: 600, color: '#334155' }}>Carton Wholesale (Rs.)</label>
+                  <input name="cartonWsPrice" type="number" step="0.01" value={formData.cartonWsPrice} onChange={handleChange} className="bg-white border border-slate-200 focus:border-[#0088cc] text-slate-800 px-3 py-1.5 rounded-md text-sm outline-none w-full shadow-sm" disabled={formMode === 'VIEW' || formMode === 'DISABLED'} />
+                </div>
               </div>
             </div>
           )}

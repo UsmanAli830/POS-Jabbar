@@ -42,7 +42,10 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       paymentMethod,
       paymentReceived,
       finHeadId,
-      refNumber
+      refNumber,
+      deliveryCharges,
+      labourCharges,
+      deliveryRemarks
     } = req.body;
 
     let validSalesmanId: number | null = null;
@@ -66,6 +69,8 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
 
     const manualDiscount = Number(discountAmount || 0);
     const isCredit = paymentMethod === 'Credit / Unpaid';
+    const delCharges = Math.max(0, Number(deliveryCharges || 0));
+    const labCharges = Math.max(0, Number(labourCharges || 0));
 
     if (isCredit && !customerId) {
       return res.status(400).json({ error: 'Customer is required for credit sales.' });
@@ -128,8 +133,10 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       }
 
       // Securely calculate the backend total
-      const totalCartValue = finalItems.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.unitPrice)), 0);
-      const computedTotal = totalCartValue + Number(taxAmount || 0) - manualDiscount - backendDiscountAmount;
+      const totalCartValue = finalItems.reduce((sum, item) => sum + (Number(item.quantity || item.qty || 1) * Number(item.unitPrice || item.price || 0)), 0);
+      const computedItemsNet = totalCartValue + Number(taxAmount || 0) - manualDiscount - backendDiscountAmount;
+      const safeItemsNet = computedItemsNet < 0 ? 0 : computedItemsNet;
+      const computedTotal = safeItemsNet + delCharges + labCharges;
       const parsedTotal = computedTotal < 0 ? 0 : computedTotal; // Prevent negative totals
 
       let createdSale;
@@ -199,6 +206,9 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
             discountAmount: Number(discountAmount || 0) + backendDiscountAmount,
             expenseAmount: finalTotalAmount - parsedTotal,
             paymentReceived: Number(paymentReceived || 0),
+            deliveryCharges: delCharges,
+            labourCharges: labCharges,
+            deliveryRemarks: deliveryRemarks ? String(deliveryRemarks).trim() : null,
             companyId: tenantCompanyId || undefined,
             invoiceNumber: nextSeq,
             details: {
@@ -212,6 +222,9 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
 
                 const qty = Number(item.quantity || item.qty || 1);
                 const price = Number(item.unitPrice || item.price || 0);
+                const unitType = item.unitType === 'CARTON' ? 'CARTON' : 'PIECE';
+                const cartonQty = Number(item.cartonQty || (unitType === 'CARTON' ? qty : 0));
+
                 const gross = Number(item.grossAmount || (qty * price));
                 const discPct = Number(item.discPercent || item.discountPercent || 0);
                 const cashDisc = Number(item.cashDiscount || 0);
@@ -236,6 +249,8 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
                   productRec: { connect: { id: validProdId } },
                   qty,
                   price,
+                  unitType,
+                  cartonQty,
                   discPercent: discPct,
                   cashDiscount: cashDisc,
                   grossAmount: gross,
@@ -254,23 +269,26 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
         });
       }
 
-      // 2. Deduct inventory from ProductRec
+      // 2. Deduct inventory from ProductRec (Carton vs Piece stock deduction)
       for (const item of finalItems) {
         const rawId = Number(item.productId || item.productRecId || item.id);
         const reqQty = Math.abs(Number(item.quantity || item.qty || 1));
-        let targetId: number | null = null;
+        let targetProd: any = null;
         if (!isNaN(rawId) && rawId > 0) {
-          const found = await tx.productRec.findUnique({ where: { id: rawId }, select: { id: true } });
-          if (found) targetId = found.id;
+          targetProd = await tx.productRec.findUnique({ where: { id: rawId } });
         }
-        if (!targetId) {
-          const defaultProd = await tx.productRec.findFirst({ select: { id: true } });
-          if (defaultProd) targetId = defaultProd.id;
+        if (!targetProd) {
+          targetProd = await tx.productRec.findFirst();
         }
-        if (targetId) {
+        if (targetProd) {
+          const pcsPerCarton = Math.max(1, Number(targetProd.pcsPerCarton || 1));
+          const totalPiecesToDeduct = (item.unitType === 'CARTON') 
+            ? Math.round(reqQty * pcsPerCarton) 
+            : reqQty;
+
           await tx.productRec.update({
-            where: { id: targetId },
-            data: { currentStock: { decrement: reqQty } }
+            where: { id: targetProd.id },
+            data: { currentStock: { decrement: totalPiecesToDeduct } }
           });
         }
       }
@@ -280,6 +298,21 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       if (!salesRevHead) {
         salesRevHead = await tx.finHead.create({ data: { name: 'Sales Revenue' } });
       }
+      let deliveryHead: any = null;
+      if (delCharges > 0) {
+        deliveryHead = await tx.finHead.findFirst({ where: { name: 'Freight & Delivery Income' } });
+        if (!deliveryHead) {
+          deliveryHead = await tx.finHead.create({ data: { name: 'Freight & Delivery Income' } });
+        }
+      }
+      let labourHead: any = null;
+      if (labCharges > 0) {
+        labourHead = await tx.finHead.findFirst({ where: { name: 'Labour & Handling Income' } });
+        if (!labourHead) {
+          labourHead = await tx.finHead.create({ data: { name: 'Labour & Handling Income' } });
+        }
+      }
+
       let defaultCashHead = await tx.finHead.findFirst({ where: { name: { contains: 'Cash' } } });
       if (!defaultCashHead) {
         defaultCashHead = await tx.finHead.create({ data: { name: 'Cash in Till' } });
@@ -307,28 +340,45 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       const invRefStr = refNumber || (`INV-${createdSale.id}`);
 
       if (customerFinHeadId) {
-        // ENTRY 1: THE INVOICE (Debit Customer AR for FULL total, Credit Sales Revenue)
+        // ENTRY 1: THE INVOICE (Debit Customer AR for FULL total including delivery/labour, Credit Income Heads)
+        const creditEntries: any[] = [];
         if (salesRevHead) {
-          await tx.cashFlowMAIN.create({
-            data: {
-              description: `Invoice: ${invRefStr} (Total: Rs. ${parsedTotal})`,
-              details: {
-                create: [
-                  {
-                    finHeadId: customerFinHeadId,
-                    amount: parsedTotal,
-                    transactionType: 'DR' // Debit Customer AR (Increases Debt)
-                  },
-                  {
-                    finHeadId: salesRevHead.id,
-                    amount: parsedTotal,
-                    transactionType: 'CR' // Credit Sales Revenue
-                  }
-                ]
-              }
-            }
+          creditEntries.push({
+            finHeadId: salesRevHead.id,
+            amount: safeItemsNet,
+            transactionType: 'CR'
           });
         }
+        if (delCharges > 0 && deliveryHead) {
+          creditEntries.push({
+            finHeadId: deliveryHead.id,
+            amount: delCharges,
+            transactionType: 'CR'
+          });
+        }
+        if (labCharges > 0 && labourHead) {
+          creditEntries.push({
+            finHeadId: labourHead.id,
+            amount: labCharges,
+            transactionType: 'CR'
+          });
+        }
+
+        await tx.cashFlowMAIN.create({
+          data: {
+            description: `Invoice: ${invRefStr} (Total: Rs. ${parsedTotal})`,
+            details: {
+              create: [
+                {
+                  finHeadId: customerFinHeadId,
+                  amount: parsedTotal,
+                  transactionType: 'DR' // Debit Customer AR (Increases Debt)
+                },
+                ...creditEntries
+              ]
+            }
+          }
+        });
 
         // ENTRY 2: THE PAYMENT (Credit Customer AR for Cash Received, Debit Cash in Till)
         const cashPaid = Number(paymentReceived || 0);
@@ -341,12 +391,12 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
                   {
                     finHeadId: customerFinHeadId,
                     amount: cashPaid,
-                    transactionType: 'CR' // Credit Customer AR (Reduces Debt / Creates Advance)
+                    transactionType: 'CR' // Credit Customer AR
                   },
                   {
                     finHeadId: cashHeadId,
                     amount: cashPaid,
-                    transactionType: 'DR' // Debit Cash Drawer / Selected Ledger
+                    transactionType: 'DR' // Debit Cash Drawer
                   }
                 ]
               }
@@ -356,7 +406,30 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       } else {
         // WALK-IN CUSTOMER (No customer account selected):
         const cashPaid = Number(paymentReceived || parsedTotal);
-        if (salesRevHead && cashHeadId) {
+        const creditEntries: any[] = [];
+        if (salesRevHead) {
+          creditEntries.push({
+            finHeadId: salesRevHead.id,
+            amount: safeItemsNet,
+            transactionType: 'CR'
+          });
+        }
+        if (delCharges > 0 && deliveryHead) {
+          creditEntries.push({
+            finHeadId: deliveryHead.id,
+            amount: delCharges,
+            transactionType: 'CR'
+          });
+        }
+        if (labCharges > 0 && labourHead) {
+          creditEntries.push({
+            finHeadId: labourHead.id,
+            amount: labCharges,
+            transactionType: 'CR'
+          });
+        }
+
+        if (cashHeadId) {
           await tx.cashFlowMAIN.create({
             data: {
               description: `Walk-in Sale: ${invRefStr}`,
@@ -367,11 +440,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
                     amount: cashPaid > 0 ? cashPaid : parsedTotal,
                     transactionType: 'DR'
                   },
-                  {
-                    finHeadId: salesRevHead.id,
-                    amount: parsedTotal,
-                    transactionType: 'CR'
-                  }
+                  ...creditEntries
                 ]
               }
             }
