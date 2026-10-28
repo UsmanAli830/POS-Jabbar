@@ -26,7 +26,7 @@ if %errorlevel% neq 0 (
 :: Compiled build present?
 if not exist "%~dp0backend\dist\index.js" (
     color 0C
-    echo  [ERROR] Compiled app not found (backend\dist). This install is incomplete.
+    echo  [ERROR] Compiled app not found in backend\dist folder. This install is incomplete.
     if %SILENT_MODE%==0 pause
     exit /b 1
 )

@@ -56,8 +56,8 @@ echo    ACTIVATION REQUIRED  (one-time, per computer)
 echo ====================================================================
 echo.
 set "MACHINE_ID="
-for /f "delims=" %%i in ('node -e "console.log(require('./backend/dist/license/hardware').getHardwareId())" 2^>nul') do set "MACHINE_ID=%%i"
-> "%~dp0MachineID.txt" echo !MACHINE_ID!
+node -e "require('fs').writeFileSync(process.argv[1], require('./backend/dist/license/hardware').getHardwareId())" "%~dp0MachineID.txt" 2>nul
+if exist "%~dp0MachineID.txt" set /p MACHINE_ID=<"%~dp0MachineID.txt"
 
 echo   This computer's MACHINE ID:
 echo.
