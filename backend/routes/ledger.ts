@@ -80,7 +80,7 @@ router.get('/customer/:id', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Ledger calculation error:', error);
-    res.status(500).json({ error: error.message || 'Failed to fetch customer ledger' });
+    res.status(500).json({ error: 'Failed to fetch customer ledger' });
   }
 });
 // GET /api/ledger/vendor/:id?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
@@ -157,7 +157,7 @@ router.get('/vendor/:id', async (req, res) => {
       transactions
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch vendor ledger' });
+    res.status(500).json({ error: 'Failed to fetch vendor ledger' });
   }
 });
 

@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
     });
     res.json(stock);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch damaged stock' });
+    res.status(500).json({ error: 'Failed to fetch damaged stock' });
   }
 });
 
@@ -58,7 +58,7 @@ router.post('/quarantine', async (req, res) => {
 
     res.status(201).json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to quarantine stock' });
+    res.status(500).json({ error: 'Failed to quarantine stock' });
   }
 });
 
@@ -223,7 +223,7 @@ router.put('/resolve/:id', async (req, res) => {
 
     res.json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to resolve damaged stock' });
+    res.status(500).json({ error: 'Failed to resolve damaged stock' });
   }
 });
 
@@ -342,7 +342,7 @@ router.put('/revert/:id', async (req, res) => {
 
     res.json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to revert damaged stock resolution' });
+    res.status(500).json({ error: 'Failed to revert damaged stock resolution' });
   }
 });
 

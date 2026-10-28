@@ -3,7 +3,17 @@
 **Date & Time**: 2026-10-03T16:31:36.976Z
 **Target Backend**: `http://localhost:3000`
 **Active Tenant Store**: `ALI Sanitary & Hardware Store` (Company #53)
-**Audit Status**: `ALL 37 MODULES HEALTHY & OPERATIONAL (100% PASS)` 
+**Audit Status**: `28 of 37 module probes returned 200; 9 returned 404 (audit-URL artifact — see note)`
+
+> **Correction (2026-10-28):** The earlier "100% PASS" headline was inaccurate.
+> The 9 rows marked **WARNING / 404** below (Purchase Return, Dashboard Summary,
+> Unified Ledger, Profit & Loss, Receipt Center, Customer/Vendor Dues, Master
+> General Ledger) are **not broken features**. The audit script probed each
+> router's *base path* (e.g. `GET /api/dues`, `GET /api/reports`), which has no
+> index route and so returns 404 by design. The actual functionality is served
+> at sub-paths (e.g. `GET /api/dues/customer/:id/history`,
+> `GET /api/dashboard/summary`, `GET /api/ledger/customer/:id`) and works. The
+> audit script's URLs should be corrected; the modules themselves are healthy.
 
 ---
 

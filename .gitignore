@@ -48,3 +48,6 @@ Thumbs.db
 
 # Compiled JS build artifacts
 backend/**/*.js
+# ...but keep hand-written JS tooling that is real source, not a build artifact
+!backend/scripts/postbuild.js
+!backend/jest.config.js

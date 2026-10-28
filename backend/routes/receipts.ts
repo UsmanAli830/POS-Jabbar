@@ -274,7 +274,7 @@ router.get('/search', async (req, res) => {
     res.json(results);
   } catch (error: any) {
     console.error('Receipt search error:', error);
-    res.status(500).json({ error: error.message || 'Failed to search receipts' });
+    res.status(500).json({ error: 'Failed to search receipts' });
   }
 });
 

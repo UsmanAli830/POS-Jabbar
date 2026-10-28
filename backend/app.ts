@@ -33,7 +33,7 @@ import superAdminRouter from './routes/superAdmin';
 import licenseRouter from './routes/license';
 import backupRouter from './routes/backup';
 import { checkLicense } from './middleware/license';
-import { getTenantFilter } from './middleware/auth';
+import { getTenantFilter, authenticate } from './middleware/auth';
 import bcrypt from 'bcryptjs';
 import prisma from './db';
 
@@ -45,14 +45,16 @@ if (existingDbUrl) {
 
 const app = express();
 
-// Multi-Device LAN & Localhost CORS configuration
+// Multi-Device LAN & Localhost CORS configuration.
+// Anchored patterns so an attacker domain that merely CONTAINS "10." or
+// "192.168." (e.g. http://evil-10.attacker.com) is no longer accepted.
 app.use(cors({
   origin: [
-    /localhost/,
-    /127\.0\.0\.1/,
-    /192\.168\./,
-    /10\./,
-    /172\.(1[6-9]|2[0-9]|3[0-1])\./
+    /^https?:\/\/localhost(:\d+)?$/,
+    /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
+    /^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+    /^https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+    /^https?:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}(:\d+)?$/
   ],
   credentials: true
 }));
@@ -61,6 +63,24 @@ app.use(express.json());
 
 // Super Admin License & Expiry Verification Middleware
 app.use(checkLicense);
+
+// GLOBAL AUTHENTICATION GATE
+// Every /api route requires a valid JWT except the small public whitelist
+// below. This closes the previous hole where ~20 routers had no auth at all
+// (unauthenticated password resets, licence tampering, settings overwrite,
+// bulk employee deletion, etc.). Individual routers may still add their own
+// finer-grained guards (requireAdmin / requireSuperAdmin / requirePermission).
+const PUBLIC_API_PATHS = new Set<string>([
+  '/api/auth/login',
+  '/api/health',
+  '/api/license/status' // read-only; needed by the lockout screen before/without login
+]);
+app.use((req, res, next) => {
+  const p = req.path || '';
+  if (!p.startsWith('/api')) return next();
+  if (PUBLIC_API_PATHS.has(p)) return next();
+  return authenticate(req, res, next);
+});
 
 // Routes
 app.use('/api/super-admin', superAdminRouter);
@@ -184,6 +204,17 @@ app.use((req, res, next) => {
   } else {
     next();
   }
+});
+
+// CENTRAL ERROR HANDLER
+// Catches anything thrown/next'd by route handlers. Logs the full error
+// server-side but returns only a generic message so internal details
+// (Prisma query internals, file paths, stack traces) never reach clients.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('[Unhandled Error]', req.method, req.path, err);
+  if (res.headersSent) return next(err);
+  res.status(err?.status || 500).json({ error: 'Internal server error' });
 });
 
 export default app;

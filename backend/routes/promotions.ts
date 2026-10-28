@@ -75,7 +75,7 @@ router.get('/check', async (req, res) => {
 
     return res.json({ applied: false });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -113,7 +113,7 @@ router.get('/', async (req, res) => {
 
     res.json(enriched);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -153,7 +153,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json(offer);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -197,7 +197,7 @@ router.put('/:id', async (req, res) => {
 
     res.json(offer);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -211,7 +211,7 @@ router.delete('/:id', async (req, res) => {
 
     res.json({ success: true, message: 'Promotion deleted successfully' });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

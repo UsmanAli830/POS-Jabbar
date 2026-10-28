@@ -506,7 +506,7 @@ router.get('/sales-deep', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Deep sales analysis endpoint error:', error);
-    res.status(500).json({ error: 'Failed to compute deep sales analysis', details: error.message || error });
+    res.status(500).json({ error: 'Failed to compute deep sales analysis' });
   }
 });
 

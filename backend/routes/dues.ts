@@ -100,7 +100,7 @@ router.get('/customer/:id/history', async (req, res) => {
     });
   } catch (error: any) {
     console.error(error);
-    res.status(500).json({ error: error.message || 'Failed to fetch customer dues history' });
+    res.status(500).json({ error: 'Failed to fetch customer dues history' });
   }
 });
 
@@ -173,7 +173,7 @@ router.post('/customer/payment', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Customer payment error:', error);
-    res.status(500).json({ error: error.message || 'Failed to process customer payment' });
+    res.status(500).json({ error: 'Failed to process customer payment' });
   }
 });
 
@@ -231,7 +231,7 @@ router.get('/vendor/:id/history', async (req, res) => {
     });
   } catch (error: any) {
     console.error(error);
-    res.status(500).json({ error: error.message || 'Failed to fetch vendor dues history' });
+    res.status(500).json({ error: 'Failed to fetch vendor dues history' });
   }
 });
 
@@ -301,7 +301,7 @@ router.post('/vendor/payment', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Vendor payment error:', error);
-    res.status(500).json({ error: error.message || 'Failed to process vendor payment' });
+    res.status(500).json({ error: 'Failed to process vendor payment' });
   }
 });
 

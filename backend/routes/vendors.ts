@@ -23,7 +23,7 @@ router.get('/next-code', async (req, res) => {
     }
     res.json({ nextCode: String(nextCode) });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch next vendor code' });
+    res.status(500).json({ error: 'Failed to fetch next vendor code' });
   }
 });
 
@@ -56,7 +56,7 @@ router.get('/', async (req, res) => {
 
     res.json(vendorsWithBalance);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch vendors', details: error });
+    res.status(500).json({ error: 'Failed to fetch vendors' });
   }
 });
 
@@ -84,7 +84,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json(vendor);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to create vendor', details: error });
+    res.status(500).json({ error: 'Failed to create vendor' });
   }
 });
 
@@ -93,6 +93,13 @@ router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { companyName, contactPerson, sellerCNIC, phone, email, address, isActive, openingBalance } = req.body;
+
+    // Tenant guard: a store can only edit its own vendors.
+    const tenantFilter = getTenantFilter(req);
+    const existingVendor = await prisma.sellerRec.findFirst({ where: { id: Number(id), ...tenantFilter } });
+    if (!existingVendor) {
+      return res.status(404).json({ error: 'Vendor not found or unauthorized' });
+    }
 
     const vendor = await prisma.sellerRec.update({
       where: { id: Number(id) },
@@ -110,7 +117,7 @@ router.put('/:id', async (req, res) => {
 
     res.json(vendor);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to update vendor', details: error });
+    res.status(500).json({ error: 'Failed to update vendor' });
   }
 });
 
@@ -122,17 +129,19 @@ router.delete('/bulk', async (req, res) => {
       return res.status(400).json({ error: 'Invalid vendor IDs provided.' });
     }
 
+    const tenantFilter = getTenantFilter(req);
     const result = await prisma.sellerRec.deleteMany({
       where: {
         id: {
-          in: ids.map(id => Number(id))
-        }
+          in: ids.map((id: any) => Number(id))
+        },
+        ...tenantFilter
       }
     });
 
     res.json({ message: 'Bulk operation completed', deletedCount: result.count, deactivatedCount: 0 });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to perform bulk delete', details: error });
+    res.status(500).json({ error: 'Failed to perform bulk delete' });
   }
 });
 
@@ -159,7 +168,7 @@ router.get('/:id/balance', async (req, res) => {
 
     res.json({ balance });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -171,7 +180,7 @@ router.get('/:id/locations', async (req, res) => {
     });
     res.json(locations);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -187,7 +196,7 @@ router.post('/:id/locations', async (req, res) => {
     });
     res.status(201).json(location);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -199,7 +208,7 @@ router.delete('/:id/locations/:locId', async (req, res) => {
     });
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

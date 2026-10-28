@@ -66,7 +66,7 @@ router.get('/heads', async (req, res) => {
     });
     res.json(heads);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch financial heads' });
+    res.status(500).json({ error: 'Failed to fetch financial heads' });
   }
 });
 
@@ -105,7 +105,7 @@ router.post('/heads', async (req, res) => {
     res.status(201).json(newHead);
   } catch (error: any) {
     console.error('Failed to create financial head', error);
-    res.status(500).json({ error: error.message || 'Failed to create financial head' });
+    res.status(500).json({ error: 'Failed to create financial head' });
   }
 });
 
@@ -175,7 +175,7 @@ router.get('/ledger', async (req, res) => {
 
     res.json(transactions);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch ledger transactions' });
+    res.status(500).json({ error: 'Failed to fetch ledger transactions' });
   }
 });
 
@@ -216,7 +216,7 @@ router.get('/balances/customers', async (req, res) => {
 
     res.json(balances);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -253,7 +253,7 @@ router.get('/balances/vendors', async (req, res) => {
 
     res.json(balances);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

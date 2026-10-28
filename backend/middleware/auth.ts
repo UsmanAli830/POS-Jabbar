@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../db';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'pos_secret_key_2024';
+import { JWT_SECRET } from '../config';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -51,7 +50,9 @@ export function getTenantCompanyId(req: Request): number | null {
   if (user.companyId !== undefined && user.companyId !== null) {
     return user.companyId;
   }
-  const isSuper = user.role === 'SUPER_ADMIN' || user.username === 'superadmin' || user.username === 'admin';
+  // Super Admin is identified strictly by role, never by username. A store
+  // user cannot gain tenant-wide access by naming themselves "admin".
+  const isSuper = user.role === 'SUPER_ADMIN';
   if (isSuper) return null;
   return null;
 }
@@ -69,7 +70,8 @@ export function getTenantFilter(req: Request): { companyId?: number } {
   if (user.companyId !== undefined && user.companyId !== null) {
     return { companyId: user.companyId };
   }
-  const isSuper = user.role === 'SUPER_ADMIN' || user.username === 'superadmin' || user.username === 'admin';
+  // Super Admin (role only) sees all tenants; everyone else is scoped or denied.
+  const isSuper = user.role === 'SUPER_ADMIN';
   if (isSuper) return {};
   return { companyId: -1 };
 }
@@ -78,7 +80,7 @@ export function requireSuperAdmin(req: AuthenticatedRequest, res: Response, next
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized: Authentication required' });
   }
-  const isSuper = req.user.role === 'SUPER_ADMIN' || req.user.username === 'superadmin' || req.user.username === 'admin';
+  const isSuper = req.user.role === 'SUPER_ADMIN';
   if (!isSuper) {
     return res.status(403).json({ error: 'Access Denied: Super Administrator privileges required' });
   }
@@ -89,7 +91,7 @@ export function requireAdmin(req: AuthenticatedRequest, res: Response, next: Nex
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized: Authentication required' });
   }
-  const isAdmin = req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN' || req.user.isAdmin || req.user.username === 'admin';
+  const isAdmin = req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN' || req.user.isAdmin === true;
   if (!isAdmin) {
     return res.status(403).json({ error: 'Access Denied: Admin privileges required' });
   }
@@ -119,8 +121,7 @@ export function requirePermission(pageRoute: string) {
     if (
       req.user.role === 'SUPER_ADMIN' ||
       req.user.role === 'ADMIN' ||
-      req.user.isAdmin ||
-      req.user.username === 'admin'
+      req.user.isAdmin === true
     ) {
       return next();
     }

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../db';
 import { authenticate, AuthenticatedRequest, getTenantFilter, getTenantCompanyId, requirePermission } from '../middleware/auth';
+import { round2 } from '../utils/money';
 
 // Phase 47: Sales route with multi-location support
 const router = Router();
@@ -20,7 +21,7 @@ router.get('/next-invoice-number', authenticate, async (req: AuthenticatedReques
       nextInvoiceNumber: `INV-${nextSeq}`
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -67,6 +68,20 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       return res.status(400).json({ error: 'Cart is empty.' });
     }
 
+    // Validate every cart line: quantity must be a positive number and price
+    // must not be negative. Prevents negative-quantity "sales" that silently
+    // inflate stock or invert ledger entries.
+    for (const it of items) {
+      const q = Number(it.quantity ?? it.qty);
+      const p = Number(it.unitPrice ?? it.price ?? 0);
+      if (!isFinite(q) || q <= 0) {
+        return res.status(400).json({ error: 'Each item must have a quantity greater than zero.' });
+      }
+      if (!isFinite(p) || p < 0) {
+        return res.status(400).json({ error: 'Item price cannot be negative.' });
+      }
+    }
+
     const manualDiscount = Number(discountAmount || 0);
     const isCredit = paymentMethod === 'Credit / Unpaid';
     const delCharges = Math.max(0, Number(deliveryCharges || 0));
@@ -76,8 +91,11 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       return res.status(400).json({ error: 'Customer is required for credit sales.' });
     }
 
-    // Execute the sale and inventory deductions as a single ACID transaction
-    const result = await prisma.$transaction(async (tx) => {
+    // Execute the sale and inventory deductions as a single ACID transaction.
+    // Wrapped in a retry: the invoice number is max()+1 and guarded by a unique
+    // constraint, so two tills checking out at once can collide (P2002) — we
+    // simply recompute and retry rather than failing the sale.
+    const runSaleTxn = () => prisma.$transaction(async (tx) => {
       let backendDiscountAmount = 0;
       let finalItems = [...items];
 
@@ -135,9 +153,9 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       // Securely calculate the backend total
       const totalCartValue = finalItems.reduce((sum, item) => sum + (Number(item.quantity || item.qty || 1) * Number(item.unitPrice || item.price || 0)), 0);
       const computedItemsNet = totalCartValue + Number(taxAmount || 0) - manualDiscount - backendDiscountAmount;
-      const safeItemsNet = computedItemsNet < 0 ? 0 : computedItemsNet;
+      const safeItemsNet = computedItemsNet < 0 ? 0 : round2(computedItemsNet);
       const computedTotal = safeItemsNet + delCharges + labCharges;
-      const parsedTotal = computedTotal < 0 ? 0 : computedTotal; // Prevent negative totals
+      const parsedTotal = computedTotal < 0 ? 0 : round2(computedTotal); // Prevent negative totals, round to paisa
 
       let createdSale;
 
@@ -284,27 +302,42 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       }
 
       // 2. Deduct inventory from ProductRec (Carton vs Piece stock deduction)
+      // Products are looked up WITH the tenant filter and there is no "grab any
+      // product" fallback: a sale can only ever touch this store's own stock.
+      const storeSettings = await tx.storeSettings.findFirst({
+        where: tenantCompanyId ? { companyId: tenantCompanyId } : {}
+      });
+      const allowNegativeStock = Boolean(storeSettings?.allowNegativeStock);
+      const prodTenantFilter = tenantCompanyId ? { companyId: tenantCompanyId } : {};
+
       for (const item of finalItems) {
         const rawId = Number(item.productId || item.productRecId || item.id);
         const reqQty = Math.abs(Number(item.quantity || item.qty || 1));
-        let targetProd: any = null;
-        if (!isNaN(rawId) && rawId > 0) {
-          targetProd = await tx.productRec.findUnique({ where: { id: rawId } });
+        if (isNaN(rawId) || rawId <= 0) {
+          throw Object.assign(new Error('A cart item references an invalid product.'), { status: 400 });
         }
+        const targetProd = await tx.productRec.findFirst({ where: { id: rawId, ...prodTenantFilter } });
         if (!targetProd) {
-          targetProd = await tx.productRec.findFirst();
+          throw Object.assign(new Error('One or more cart items do not belong to this store.'), { status: 400 });
         }
-        if (targetProd) {
-          const pcsPerCarton = Math.max(1, Number(targetProd.pcsPerCarton || 1));
-          const totalPiecesToDeduct = (item.unitType === 'CARTON') 
-            ? Math.round(reqQty * pcsPerCarton) 
-            : reqQty;
 
-          await tx.productRec.update({
-            where: { id: targetProd.id },
-            data: { currentStock: { decrement: totalPiecesToDeduct } }
-          });
+        const pcsPerCarton = Math.max(1, Number(targetProd.pcsPerCarton || 1));
+        const totalPiecesToDeduct = (item.unitType === 'CARTON')
+          ? Math.round(reqQty * pcsPerCarton)
+          : reqQty;
+
+        // Block overselling unless the store has explicitly enabled negative stock.
+        if (!allowNegativeStock && Number(targetProd.currentStock || 0) < totalPiecesToDeduct) {
+          throw Object.assign(
+            new Error(`Insufficient stock for "${targetProd.productName}". Available: ${targetProd.currentStock}, requested: ${totalPiecesToDeduct}.`),
+            { status: 400 }
+          );
         }
+
+        await tx.productRec.update({
+          where: { id: targetProd.id },
+          data: { currentStock: { decrement: totalPiecesToDeduct } }
+        });
       }
 
       // 3. Post to Double-Entry Ledger (CashFlowMAIN & CashFlowDTL)
@@ -473,10 +506,27 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
       };
     });
 
+    let result;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        result = await runSaleTxn();
+        break;
+      } catch (e: any) {
+        // Retry only on invoice-number unique-constraint collisions.
+        if (e?.code === 'P2002' && attempt < 2) continue;
+        throw e;
+      }
+    }
+
     res.status(201).json(result);
   } catch (error: any) {
     console.error('Sale Transaction Error:', error);
-    res.status(500).json({ error: error.message || 'Failed to process sale', details: error });
+    // Surface intended client-side validation errors (e.g. insufficient stock,
+    // invalid product) while keeping genuine server faults generic.
+    if (error?.status && error.status < 500) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    res.status(500).json({ error: 'Failed to process sale' });
   }
 });
 
@@ -516,7 +566,7 @@ router.get('/', async (req, res) => {
 
     res.json(combined);
   } catch (error: any) {
-    res.status(500).json({ error: error.message, details: error });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -555,7 +605,7 @@ router.get('/customer-history/:customerId', async (req, res) => {
     res.json(history);
   } catch (error: any) {
     console.error('Failed to fetch customer sales history', error);
-    res.status(500).json({ error: error.message || 'Failed to fetch customer history' });
+    res.status(500).json({ error: 'Failed to fetch customer history' });
   }
 });
 
@@ -605,7 +655,7 @@ router.get('/customer-product-history', async (req, res) => {
     res.json(history);
   } catch (error: any) {
     console.error('Failed to fetch customer product history', error);
-    res.status(500).json({ error: error.message || 'Failed to fetch customer product history' });
+    res.status(500).json({ error: 'Failed to fetch customer product history' });
   }
 });
 
@@ -735,7 +785,7 @@ router.get('/lookup', async (req: any, res) => {
     await handleInvoiceLookup(queryVal, tenantCompanyId, res);
   } catch (error: any) {
     console.error('Invoice Lookup Query Error:', error);
-    res.status(500).json({ error: error.message || 'Failed to lookup invoice' });
+    res.status(500).json({ error: 'Failed to lookup invoice' });
   }
 });
 
@@ -746,7 +796,7 @@ router.get('/lookup/:invoiceNumber', async (req: any, res) => {
     await handleInvoiceLookup(rawParam, tenantCompanyId, res);
   } catch (error: any) {
     console.error('Invoice Lookup Param Error:', error);
-    res.status(500).json({ error: error.message || 'Failed to lookup invoice' });
+    res.status(500).json({ error: 'Failed to lookup invoice' });
   }
 });
 
@@ -777,7 +827,7 @@ router.get('/customer-invoices/:customerId', async (req, res) => {
     })));
   } catch (error: any) {
     console.error('Failed to fetch customer invoices:', error);
-    res.status(500).json({ error: error.message || 'Failed to fetch customer invoices' });
+    res.status(500).json({ error: 'Failed to fetch customer invoices' });
   }
 });
 
@@ -824,8 +874,10 @@ router.put('/:id', requirePermission('allow-bill-editing'), async (req: Authenti
         const newQty = newQtyMap.get(prodId) || 0;
         const delta = newQty - oldQty; // Selling more units reduces currentStock by delta
         if (delta !== 0) {
-          await tx.productRec.update({
-            where: { id: prodId },
+          // Scoped to the tenant so an edited bill can never adjust another
+          // store's stock via a crafted product id (updateMany = no-op if foreign).
+          await tx.productRec.updateMany({
+            where: { id: prodId, ...tenantFilter },
             data: { currentStock: { decrement: delta } }
           });
         }
@@ -941,7 +993,7 @@ router.put('/:id', requirePermission('allow-bill-editing'), async (req: Authenti
     res.json(result);
   } catch (error: any) {
     console.error('In-Place Sale Edit Error:', error);
-    res.status(500).json({ error: error.message || 'Failed to edit sale invoice' });
+    res.status(500).json({ error: 'Failed to edit sale invoice' });
   }
 });
 

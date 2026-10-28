@@ -123,7 +123,7 @@ router.get('/sales', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Sales report error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate sales report' });
+    res.status(500).json({ error: 'Failed to generate sales report' });
   }
 });
 
@@ -221,7 +221,7 @@ router.get('/purchases', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Purchase report error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate purchase report' });
+    res.status(500).json({ error: 'Failed to generate purchase report' });
   }
 });
 
@@ -293,7 +293,7 @@ router.get('/inventory', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Inventory report error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate inventory report' });
+    res.status(500).json({ error: 'Failed to generate inventory report' });
   }
 });
 
@@ -398,7 +398,7 @@ router.get('/financials', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Financial report error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate financial report' });
+    res.status(500).json({ error: 'Failed to generate financial report' });
   }
 });
 
@@ -434,7 +434,7 @@ router.get('/customers', async (req, res) => {
 
     res.json(report);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -469,7 +469,7 @@ router.get('/vendors', async (req, res) => {
 
     res.json(report);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -514,7 +514,7 @@ router.get('/payroll', async (req, res) => {
       employees: list
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -545,7 +545,7 @@ router.get('/returns', async (req, res) => {
       }))
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -785,7 +785,7 @@ router.get('/profit-loss', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Profit & Loss calculation error:', error);
-    res.status(500).json({ error: error.message || 'Failed to calculate Profit & Loss' });
+    res.status(500).json({ error: 'Failed to calculate Profit & Loss' });
   }
 });
 
@@ -1065,7 +1065,7 @@ router.get('/statement', async (req, res) => {
     res.status(400).json({ error: 'Invalid accountType specified' });
   } catch (error: any) {
     console.error('Statement error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate statement' });
+    res.status(500).json({ error: 'Failed to generate statement' });
   }
 });
 
@@ -1280,7 +1280,7 @@ router.get('/balance-sheet', requirePermission('balance-sheet'), async (req, res
     });
   } catch (error: any) {
     console.error('Balance sheet error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate balance sheet' });
+    res.status(500).json({ error: 'Failed to generate balance sheet' });
   }
 });
 
@@ -1319,7 +1319,7 @@ router.get('/assets-expenses', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Failed to retrieve assets and expenses', error);
-    res.status(500).json({ error: error.message || 'Failed to retrieve assets and expenses' });
+    res.status(500).json({ error: 'Failed to retrieve assets and expenses' });
   }
 });
 
@@ -1376,7 +1376,7 @@ router.post('/assets-expenses', async (req, res) => {
     res.status(201).json(result);
   } catch (error: any) {
     console.error('Failed to log asset or expense', error);
-    res.status(500).json({ error: error.message || 'Failed to log asset or expense' });
+    res.status(500).json({ error: 'Failed to log asset or expense' });
   }
 });
 

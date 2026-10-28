@@ -5,6 +5,14 @@ import { getTenantFilter, getTenantCompanyId, AuthenticatedRequest } from '../mi
 
 const router = Router();
 
+// Usernames reserved for the software-supplier Super Admin accounts. Store-level
+// staff can never be created or renamed to these, which closes the privilege
+// escalation where a store admin created a user named "admin"/"superadmin".
+const RESERVED_USERNAMES = new Set(['admin', 'superadmin']);
+function isReservedUsername(username?: string | null): boolean {
+  return !!username && RESERVED_USERNAMES.has(username.trim().toLowerCase());
+}
+
 // GET all posts
 router.get('/posts', async (req, res) => {
   try {
@@ -24,7 +32,7 @@ router.get('/posts', async (req, res) => {
     });
     res.json(posts);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -44,7 +52,7 @@ router.post('/posts', async (req, res) => {
     });
     res.status(201).json(post);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to create category' });
+    res.status(500).json({ error: 'Failed to create category' });
   }
 });
 
@@ -62,7 +70,7 @@ router.put('/posts/:id', async (req, res) => {
     });
     res.json(post);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to update category' });
+    res.status(500).json({ error: 'Failed to update category' });
   }
 });
 
@@ -84,7 +92,7 @@ router.delete('/posts/:id', async (req, res) => {
     });
     res.json({ message: 'Category deleted successfully', post });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to delete category' });
+    res.status(500).json({ error: 'Failed to delete category' });
   }
 });
 
@@ -121,7 +129,7 @@ const fetchEmployeesHandler = async (req: any, res: any) => {
     });
     res.json(sanitized);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch employees', details: error });
+    res.status(500).json({ error: 'Failed to fetch employees' });
   }
 };
 
@@ -146,6 +154,9 @@ router.post('/employees', async (req, res) => {
     
     // Check if username is already taken
     if (username && username.trim() !== '') {
+      if (isReservedUsername(username)) {
+        return res.status(400).json({ error: 'That username is reserved and cannot be used.' });
+      }
       const existing = await prisma.employeeRec.findUnique({
         where: { username: username.trim() }
       });
@@ -214,7 +225,7 @@ router.post('/employees', async (req, res) => {
 
     res.status(201).json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to create employee', details: error });
+    res.status(500).json({ error: 'Failed to create employee' });
   }
 });
 
@@ -233,8 +244,20 @@ router.put('/employees/:id', async (req, res) => {
 
     const empId = Number(id);
 
+    // Tenant guard: the target employee must belong to the caller's company
+    // (a Super Admin may edit any). This prevents editing another store's staff
+    // and prevents unauthenticated password resets of privileged accounts.
+    const tenantFilter = getTenantFilter(req);
+    const target = await prisma.employeeRec.findFirst({ where: { id: empId, ...tenantFilter } });
+    if (!target) {
+      return res.status(404).json({ error: 'Employee not found or unauthorized' });
+    }
+
     // Check username uniqueness if changed
     if (username && username.trim() !== '') {
+      if (isReservedUsername(username)) {
+        return res.status(400).json({ error: 'That username is reserved and cannot be used.' });
+      }
       const existing = await prisma.employeeRec.findUnique({
         where: { username: username.trim() }
       });
@@ -257,7 +280,10 @@ router.put('/employees/:id', async (req, res) => {
       username: username && username.trim() !== '' ? username.trim() : null
     };
 
-    if (companyId) {
+    // Only a Super Admin may reassign an employee's company. Store users cannot
+    // move staff between tenants.
+    const callerTenant = getTenantCompanyId(req);
+    if (companyId && callerTenant === null) {
       dataUpdate.companyId = Number(companyId);
     }
 
@@ -307,7 +333,7 @@ router.put('/employees/:id', async (req, res) => {
 
     res.json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to update employee', details: error });
+    res.status(500).json({ error: 'Failed to update employee' });
   }
 });
 
@@ -320,13 +346,19 @@ router.delete('/employees/bulk', async (req, res) => {
       return res.status(400).json({ error: 'Invalid employee IDs provided.' });
     }
 
+    // Tenant guard: a store can only delete its own staff; never Super Admins.
+    const tenantFilter = getTenantFilter(req);
     const result = await prisma.employeeRec.deleteMany({
-      where: { id: { in: ids.map(id => Number(id)) } }
+      where: {
+        id: { in: ids.map((id: any) => Number(id)) },
+        role: { not: 'SUPER_ADMIN' },
+        ...tenantFilter
+      }
     });
 
     res.json({ message: 'Bulk operation completed', deletedCount: result.count });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to perform bulk delete', details: error });
+    res.status(500).json({ error: 'Failed to perform bulk delete' });
   }
 });
 
@@ -421,7 +453,7 @@ router.post('/employees/:id/salary', async (req, res) => {
 
     res.status(201).json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to process salary', details: error });
+    res.status(500).json({ error: 'Failed to process salary' });
   }
 });
 
@@ -516,7 +548,7 @@ router.post('/pay-salary', async (req, res) => {
 
     res.status(201).json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to process salary payout', details: error });
+    res.status(500).json({ error: 'Failed to process salary payout' });
   }
 });
 
@@ -581,7 +613,7 @@ router.post('/employees/:id/advance', async (req, res) => {
 
     res.status(201).json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to process advance', details: error });
+    res.status(500).json({ error: 'Failed to process advance' });
   }
 });
 
@@ -643,7 +675,7 @@ router.post('/advance', async (req, res) => {
 
     res.status(201).json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to process advance', details: error });
+    res.status(500).json({ error: 'Failed to process advance' });
   }
 });
 
@@ -684,7 +716,7 @@ router.post('/clock-in', async (req, res) => {
 
     res.status(200).json({ employee, shift: newShift });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to clock in' });
+    res.status(500).json({ error: 'Failed to clock in' });
   }
 });
 
@@ -717,7 +749,7 @@ router.post('/clock-out', async (req, res) => {
     });
     res.status(200).json(updatedShift);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to clock out' });
+    res.status(500).json({ error: 'Failed to clock out' });
   }
 });
 
@@ -801,7 +833,7 @@ router.get('/attendance', async (req, res) => {
 
     res.json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch attendance', details: error });
+    res.status(500).json({ error: 'Failed to fetch attendance' });
   }
 });
 
@@ -860,7 +892,7 @@ router.post('/attendance', async (req, res) => {
 
     res.json({ message: 'Attendance records saved successfully', count: results.length });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to save attendance', details: error });
+    res.status(500).json({ error: 'Failed to save attendance' });
   }
 });
 
@@ -924,7 +956,7 @@ router.get('/attendance/monthly-summary', async (req, res) => {
 
     res.json(summary);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch summary', details: error });
+    res.status(500).json({ error: 'Failed to fetch summary' });
   }
 });
 

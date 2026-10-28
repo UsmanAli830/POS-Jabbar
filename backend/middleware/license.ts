@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../db';
 import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-12345';
+import { JWT_SECRET } from '../config';
 
 // In-memory cache for licenses to avoid DB queries on every single request
 const companyLicenseCache = new Map<number, { expiresAt: Date; isLocked: boolean; lastChecked: number }>();

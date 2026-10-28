@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
     });
     res.json(formulas);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch formulas', details: error });
+    res.status(500).json({ error: 'Failed to fetch formulas' });
   }
 });
 
@@ -50,7 +50,7 @@ router.post('/', async (req, res) => {
     });
     res.status(201).json(formula);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create formula', details: error });
+    res.status(500).json({ error: 'Failed to create formula' });
   }
 });
 
@@ -63,7 +63,7 @@ router.delete('/:id', async (req, res) => {
     });
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete formula', details: error });
+    res.status(500).json({ error: 'Failed to delete formula' });
   }
 });
 

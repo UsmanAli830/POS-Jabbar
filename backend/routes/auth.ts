@@ -4,8 +4,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 
+import { JWT_SECRET } from '../config';
+
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'pos_secret_key_2024';
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
@@ -39,14 +40,18 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
+    // Role is derived strictly from the stored role column; usernames never
+    // confer privilege. A Super Admin is global, so we also treat its company
+    // as null below (regardless of any stale companyId on the record).
     let role: 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' = 'EMPLOYEE';
-    if (employee.role === 'SUPER_ADMIN' || (employee.username === 'superadmin' && !employee.companyId)) {
+    if (employee.role === 'SUPER_ADMIN') {
       role = 'SUPER_ADMIN';
     } else if (employee.role === 'ADMIN' || employee.isAdmin) {
       role = 'ADMIN';
     } else {
       role = 'EMPLOYEE';
     }
+    const effectiveCompanyId = role === 'SUPER_ADMIN' ? null : employee.companyId;
 
     // --- CLIENT COMPANY LICENSE LOCKOUT CHECK ---
     if (role !== 'SUPER_ADMIN' && employee.company) {
@@ -75,7 +80,7 @@ router.post('/login', async (req, res) => {
         username: employee.username,
         role,
         isAdmin,
-        companyId: employee.companyId
+        companyId: effectiveCompanyId
       },
       JWT_SECRET,
       { expiresIn: '24h' }
@@ -87,7 +92,7 @@ router.post('/login', async (req, res) => {
       username: employee.username,
       role,
       isAdmin,
-      companyId: employee.companyId,
+      companyId: effectiveCompanyId,
       companyName: employee.company?.name || 'Retail ERP',
       companyAddress: employee.company?.address || '',
       companyPhone: employee.company?.phone || '',
@@ -102,7 +107,7 @@ router.post('/login', async (req, res) => {
       employee: userPayload
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Login failed' });
+    res.status(500).json({ error: 'Login failed' });
   }
 });
 
@@ -127,11 +132,12 @@ router.get('/me', authenticate, async (req: AuthenticatedRequest, res) => {
     }
 
     let role: 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' = 'EMPLOYEE';
-    if (employee.role === 'SUPER_ADMIN' || employee.username === 'superadmin' || employee.username === 'admin') {
+    if (employee.role === 'SUPER_ADMIN') {
       role = 'SUPER_ADMIN';
     } else if (employee.role === 'ADMIN' || employee.isAdmin) {
       role = 'ADMIN';
     }
+    const effectiveCompanyId = role === 'SUPER_ADMIN' ? null : employee.companyId;
 
     const isAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN';
     const allowedPermissions = employee.permissions.filter(p => p.isAllowed).map(p => p.pageRoute);
@@ -142,7 +148,7 @@ router.get('/me', authenticate, async (req: AuthenticatedRequest, res) => {
       username: employee.username,
       role,
       isAdmin,
-      companyId: employee.companyId,
+      companyId: effectiveCompanyId,
       companyName: employee.company?.name || 'Retail ERP',
       companyAddress: employee.company?.address || '',
       companyPhone: employee.company?.phone || '',
@@ -156,7 +162,7 @@ router.get('/me', authenticate, async (req: AuthenticatedRequest, res) => {
       employee: userPayload
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Verification failed' });
+    res.status(500).json({ error: 'Verification failed' });
   }
 });
 
@@ -231,7 +237,7 @@ router.put('/change-credentials', authenticate, async (req: AuthenticatedRequest
       }
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to update credentials' });
+    res.status(500).json({ error: 'Failed to update credentials' });
   }
 });
 

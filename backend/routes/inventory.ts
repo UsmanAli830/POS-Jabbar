@@ -33,7 +33,7 @@ router.get('/', async (req, res) => {
 
     res.json(stockList);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch inventory', details: error });
+    res.status(500).json({ error: 'Failed to fetch inventory' });
   }
 });
 
@@ -62,7 +62,7 @@ router.get('/stock/:locationId', async (req, res) => {
 
     res.json(stockList);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch stock for location', details: error });
+    res.status(500).json({ error: 'Failed to fetch stock for location' });
   }
 });
 
@@ -98,7 +98,7 @@ router.post('/adjust', async (req, res) => {
       newStock: updated.currentStock
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to adjust stock', details: error });
+    res.status(500).json({ error: 'Failed to adjust stock' });
   }
 });
 

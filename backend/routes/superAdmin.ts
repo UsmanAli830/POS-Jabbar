@@ -78,7 +78,7 @@ router.get('/companies', async (req: AuthenticatedRequest, res) => {
     res.json(formatted);
   } catch (error: any) {
     console.error('Super Admin get companies error:', error);
-    res.status(500).json({ error: error.message || 'Failed to load company accounts' });
+    res.status(500).json({ error: 'Failed to load company accounts' });
   }
 });
 
@@ -175,7 +175,7 @@ router.post('/companies', async (req: AuthenticatedRequest, res) => {
     });
   } catch (error: any) {
     console.error('Create company error:', error);
-    res.status(500).json({ error: error.message || 'Failed to create company tenant' });
+    res.status(500).json({ error: 'Failed to create company tenant' });
   }
 });
 
@@ -249,7 +249,7 @@ router.put('/companies/:companyId', async (req: AuthenticatedRequest, res) => {
     });
   } catch (error: any) {
     console.error('Update company error:', error);
-    res.status(500).json({ error: error.message || 'Failed to update company details' });
+    res.status(500).json({ error: 'Failed to update company details' });
   }
 });
 
@@ -305,7 +305,7 @@ router.put('/admin-credentials/:adminId', async (req: AuthenticatedRequest, res)
     });
   } catch (error: any) {
     console.error('Reset admin credentials error:', error);
-    res.status(500).json({ error: error.message || 'Failed to update credentials' });
+    res.status(500).json({ error: 'Failed to update credentials' });
   }
 });
 
@@ -363,7 +363,7 @@ router.put('/company-license/:companyId', async (req: AuthenticatedRequest, res)
     });
   } catch (error: any) {
     console.error('Update company license error:', error);
-    res.status(500).json({ error: error.message || 'Failed to update license' });
+    res.status(500).json({ error: 'Failed to update license' });
   }
 });
 
@@ -408,7 +408,7 @@ router.post('/toggle-lock/:companyId', async (req: AuthenticatedRequest, res) =>
       license
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to toggle lock' });
+    res.status(500).json({ error: 'Failed to toggle lock' });
   }
 });
 
@@ -448,7 +448,7 @@ router.post('/change-password', async (req: AuthenticatedRequest, res) => {
     res.json({ message: 'Super Admin password changed successfully!' });
   } catch (error: any) {
     console.error('Change super admin password error:', error);
-    res.status(500).json({ error: error.message || 'Failed to change password' });
+    res.status(500).json({ error: 'Failed to change password' });
   }
 });
 

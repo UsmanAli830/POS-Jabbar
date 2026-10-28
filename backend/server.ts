@@ -1,8 +1,24 @@
 import app from './app';
 import { startBackupScheduler, runEmergencyBackup } from './scripts/backup';
+import { verifyLicense, isEnforced, reasonMessage } from './license/license';
+import { createLockedApp } from './license/lockedApp';
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
+
+// 0. Hardware-locked licence gate (only active when LICENSE_ENFORCEMENT=1, i.e.
+//    on client installs — never in dev/test). An invalid/copied/expired licence
+//    starts a lock screen instead of the real app.
+let activeApp = app;
+if (isEnforced()) {
+  const status = verifyLicense();
+  if (status.valid) {
+    console.log(`✓ Licence valid — ${status.payload?.companyName} (expires ${status.payload?.expiresAt})`);
+  } else {
+    console.error(`[LICENSE] BLOCKED (${status.reason}): ${reasonMessage(status.reason)} — starting in LOCKED mode.`);
+    activeApp = createLockedApp(status);
+  }
+}
 
 // 1. Initialize 6-hour automatic database backup scheduler
 startBackupScheduler();
@@ -28,7 +44,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // 3. Multi-Device Network Binding (0.0.0.0)
-const server = app.listen(PORT, HOST, () => {
+const server = activeApp.listen(PORT, HOST, () => {
   console.log(`=======================================================`);
   console.log(`✓ Wholesale ERP POS Backend is running`);
   console.log(`✓ Local machine URL:  http://localhost:${PORT}`);

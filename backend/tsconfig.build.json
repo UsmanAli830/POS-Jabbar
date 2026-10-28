@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./",
+    "sourceMap": false,
+    "declaration": false,
+    "removeComments": true
+  },
+  "include": [
+    "index.ts",
+    "server.ts",
+    "app.ts",
+    "db.ts",
+    "config.ts",
+    "routes/**/*.ts",
+    "middleware/**/*.ts",
+    "license/**/*.ts",
+    "scripts/backup.ts",
+    "prisma/seed.ts"
+  ],
+  "exclude": ["node_modules", "dist", "tests"]
+}

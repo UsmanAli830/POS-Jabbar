@@ -23,7 +23,7 @@ router.get('/next-code', async (req, res) => {
     }
     res.json({ nextCode: String(nextCode) });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch next customer code' });
+    res.status(500).json({ error: 'Failed to fetch next customer code' });
   }
 });
 
@@ -61,7 +61,7 @@ router.get('/', async (req, res) => {
 
     res.json(customersWithBalance);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch customers', details: error });
+    res.status(500).json({ error: 'Failed to fetch customers' });
   }
 });
 
@@ -93,7 +93,7 @@ router.get('/:id/balance', async (req, res) => {
 
     res.json({ balance: liveBalance });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch balance', details: error });
+    res.status(500).json({ error: 'Failed to fetch balance' });
   }
 });
 
@@ -143,7 +143,7 @@ router.post('/', async (req, res) => {
       CurrentBalance: customer.openingBalance
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to create customer', details: error });
+    res.status(500).json({ error: 'Failed to create customer' });
   }
 });
 
@@ -151,11 +151,18 @@ router.post('/', async (req, res) => {
 router.put('/:id', requirePermission('customer:edit'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      custName, businessName, custCNIC, creditLimit, openingBalance, 
-      phone, email, address, isActive, 
-      zoneId, areaRecordId, routeId, loadTypeId, vanRecId 
+    const {
+      custName, businessName, custCNIC, creditLimit, openingBalance,
+      phone, email, address, isActive,
+      zoneId, areaRecordId, routeId, loadTypeId, vanRecId
     } = req.body;
+
+    // Tenant guard: a store can only edit its own customers.
+    const custTenantFilter = getTenantFilter(req);
+    const existingCustomer = await prisma.customerRec.findFirst({ where: { id: Number(id), ...custTenantFilter } });
+    if (!existingCustomer) {
+      return res.status(404).json({ error: 'Customer not found or unauthorized' });
+    }
 
     const customer = await prisma.customerRec.update({
       where: { id: Number(id) },
@@ -191,7 +198,7 @@ router.put('/:id', requirePermission('customer:edit'), async (req, res) => {
       CurrentBalance: customer.openingBalance
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to update customer', details: error });
+    res.status(500).json({ error: 'Failed to update customer' });
   }
 });
 
@@ -204,13 +211,15 @@ router.delete('/bulk', async (req, res) => {
     }
 
     let deletedCount = 0;
-    
-    // In Phase 2, we just hard delete them as there are no relations yet in CustomerRec
+
+    // Tenant guard: a store can only delete its own customers.
+    const tenantFilter = getTenantFilter(req);
     const result = await prisma.customerRec.deleteMany({
       where: {
         id: {
-          in: ids.map(id => Number(id))
-        }
+          in: ids.map((id: any) => Number(id))
+        },
+        ...tenantFilter
       }
     });
     
@@ -218,7 +227,7 @@ router.delete('/bulk', async (req, res) => {
 
     res.json({ message: 'Bulk operation completed', deletedCount, deactivatedCount: 0 });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to perform bulk delete', details: error });
+    res.status(500).json({ error: 'Failed to perform bulk delete' });
   }
 });
 
@@ -231,7 +240,7 @@ router.get('/:id/locations', async (req, res) => {
     });
     res.json(locations);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -250,7 +259,7 @@ router.post('/:id/locations', async (req, res) => {
     });
     res.status(201).json(location);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -269,7 +278,7 @@ router.put('/:id/locations/:locId', async (req, res) => {
     });
     res.json(location);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -281,7 +290,7 @@ router.delete('/:id/locations/:locId', async (req, res) => {
     });
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

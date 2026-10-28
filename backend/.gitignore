@@ -24,3 +24,9 @@ backups/
 npm-debug.log*
 
 /generated/prisma
+
+# Licensing: never commit the signing private key or issued licence files
+license/private_key.pem
+**/license/private_key.pem
+license.key
+**/license.key

@@ -82,7 +82,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json(createdRecord);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to create master data record' });
+    res.status(500).json({ error: 'Failed to create master data record' });
   }
 });
 
@@ -149,7 +149,7 @@ router.put('/:type/:id', async (req, res) => {
     res.json({ message: 'Record updated successfully', updatedRecord });
   } catch (error: any) {
     console.error('Update master data failed:', error);
-    res.status(500).json({ error: error.message || 'Failed to update master data record' });
+    res.status(500).json({ error: 'Failed to update master data record' });
   }
 });
 
@@ -222,7 +222,7 @@ router.delete('/:type/:id', async (req, res) => {
         error: 'Cannot delete record: it is actively referenced by other critical ledger or system records.'
       });
     }
-    res.status(500).json({ error: error.message || 'Failed to delete master data record' });
+    res.status(500).json({ error: 'Failed to delete master data record' });
   }
 });
 

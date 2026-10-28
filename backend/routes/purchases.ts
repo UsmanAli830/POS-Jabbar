@@ -170,7 +170,7 @@ router.post('/', async (req, res) => {
     res.status(201).json(result);
   } catch (error: any) {
     console.error('Purchase Transaction Error:', error);
-    res.status(500).json({ error: error.message || 'Failed to process purchase', details: error });
+    res.status(500).json({ error: 'Failed to process purchase' });
   }
 });
 
@@ -189,7 +189,7 @@ router.get('/', async (req, res) => {
     });
     res.json(purchases);
   } catch (error: any) {
-    res.status(500).json({ error: error.message, details: error });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -229,7 +229,7 @@ router.get('/:id', async (req, res) => {
       rawInvoiceNumber: purchase.invoiceNumber || purchase.id
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -371,7 +371,7 @@ router.put('/:id', requirePermission('allow-bill-editing'), async (req: Authenti
     res.json(result);
   } catch (error: any) {
     console.error('In-Place Purchase Edit Error:', error);
-    res.status(500).json({ error: error.message || 'Failed to edit purchase invoice' });
+    res.status(500).json({ error: 'Failed to edit purchase invoice' });
   }
 });
 

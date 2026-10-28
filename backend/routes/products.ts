@@ -32,7 +32,7 @@ router.get('/', async (req, res) => {
 
     res.json(mapped);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch products', details: error });
+    res.status(500).json({ error: 'Failed to fetch products' });
   }
 });
 
@@ -75,7 +75,7 @@ router.get('/search', async (req, res) => {
       res.status(404).json({ error: 'Product not found' });
     }
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to search product', details: error });
+    res.status(500).json({ error: 'Failed to search product' });
   }
 });
 
@@ -96,7 +96,7 @@ router.get('/next-code', async (req, res) => {
     }
     res.json({ nextCode: String(nextCode) });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch next product code' });
+    res.status(500).json({ error: 'Failed to fetch next product code' });
   }
 });
 
@@ -123,7 +123,7 @@ router.get('/:id', async (req, res) => {
       res.status(404).json({ error: 'Product not found' });
     }
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch product', details: error });
+    res.status(500).json({ error: 'Failed to fetch product' });
   }
 });
 
@@ -187,7 +187,7 @@ router.post('/', async (req, res) => {
     });
     res.status(201).json(product);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to create product', details: error });
+    res.status(500).json({ error: 'Failed to create product' });
   }
 });
 
@@ -237,7 +237,7 @@ router.post('/bulk-generate', async (req, res) => {
 
     res.status(201).json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Bulk generation failed', details: error });
+    res.status(500).json({ error: 'Bulk generation failed' });
   }
 });
 
@@ -266,7 +266,7 @@ router.put('/bulk', async (req, res) => {
 
     res.json({ success: true, updatedCount: result.length });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Bulk update failed', details: error });
+    res.status(500).json({ error: 'Bulk update failed' });
   }
 });
 
@@ -288,7 +288,7 @@ router.put('/:id', async (req, res) => {
     });
     res.json(product);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to update product', details: error });
+    res.status(500).json({ error: 'Failed to update product' });
   }
 });
 
@@ -307,7 +307,7 @@ router.delete('/bulk', async (req, res) => {
     
     res.json({ message: 'Products deleted successfully', count: result.count });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to delete products', details: error });
+    res.status(500).json({ error: 'Failed to delete products' });
   }
 });
 
@@ -326,7 +326,7 @@ router.delete('/:id', async (req, res) => {
     });
     res.json({ message: 'Product deleted successfully' });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to delete product', details: error });
+    res.status(500).json({ error: 'Failed to delete product' });
   }
 });
 
@@ -365,7 +365,7 @@ router.post('/bulk-upload', async (req, res) => {
 
     res.status(201).json({ success: true, createdCount });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Bulk upload failed', details: error });
+    res.status(500).json({ error: 'Bulk upload failed' });
   }
 });
 

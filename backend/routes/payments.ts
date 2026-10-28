@@ -37,7 +37,7 @@ router.get('/pending', async (req, res) => {
 
     res.json(pendingSales);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch pending payments' });
+    res.status(500).json({ error: 'Failed to fetch pending payments' });
   }
 });
 
@@ -123,7 +123,7 @@ router.post('/receive', async (req, res) => {
 
     res.status(201).json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to process payment' });
+    res.status(500).json({ error: 'Failed to process payment' });
   }
 });
 
@@ -183,7 +183,7 @@ router.post('/pay', async (req, res) => {
 
     res.status(201).json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to process vendor payment' });
+    res.status(500).json({ error: 'Failed to process vendor payment' });
   }
 });
 

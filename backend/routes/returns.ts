@@ -91,7 +91,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to process return' });
+    res.status(500).json({ error: 'Failed to process return' });
   }
 });
 
@@ -376,7 +376,7 @@ router.post('/sales', requirePermission('allow-bill-editing'), async (req: Authe
     res.status(201).json(result);
   } catch (error: any) {
     console.error('Sales Return Error:', error);
-    res.status(500).json({ error: error.message || 'Failed to process sales return' });
+    res.status(500).json({ error: 'Failed to process sales return' });
   }
 });
 // POST /api/returns/purchases (Phase 46 — Split Settlement & In-Place Editing)
@@ -610,7 +610,7 @@ router.post('/purchases', requirePermission('allow-bill-editing'), async (req: A
     res.status(201).json(result);
   } catch (error: any) {
     console.error('Purchase Return Error:', error);
-    res.status(500).json({ error: error.message || 'Failed to process purchase return' });
+    res.status(500).json({ error: 'Failed to process purchase return' });
   }
 });
 

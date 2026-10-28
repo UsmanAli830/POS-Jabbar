@@ -75,7 +75,7 @@ router.get('/summary', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Dashboard error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

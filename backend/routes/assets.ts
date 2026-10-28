@@ -20,7 +20,7 @@ router.get('/', async (req, res) => {
     });
     res.json(assets);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch assets' });
+    res.status(500).json({ error: 'Failed to fetch assets' });
   }
 });
 
@@ -38,7 +38,7 @@ router.post('/', async (req, res) => {
     });
     res.status(201).json(asset);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to create asset' });
+    res.status(500).json({ error: 'Failed to create asset' });
   }
 });
 
@@ -58,7 +58,7 @@ router.put('/:id', async (req, res) => {
     });
     res.json(asset);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to update asset' });
+    res.status(500).json({ error: 'Failed to update asset' });
   }
 });
 
@@ -71,7 +71,7 @@ router.delete('/:id', async (req, res) => {
     });
     res.json({ message: 'Asset deleted' });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to delete asset' });
+    res.status(500).json({ error: 'Failed to delete asset' });
   }
 });
 
@@ -81,7 +81,7 @@ router.get('/types', async (req, res) => {
     const types = await prisma.assetType.findMany();
     res.json(types);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

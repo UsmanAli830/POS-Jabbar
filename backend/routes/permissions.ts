@@ -92,7 +92,7 @@ router.get('/employees', authenticate, requireAdmin, async (req: AuthenticatedRe
     });
     res.json(employees);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch employees' });
+    res.status(500).json({ error: 'Failed to fetch employees' });
   }
 });
 
@@ -140,7 +140,7 @@ router.get('/employee/:employeeId', authenticate, requireAdmin, async (req: Auth
       permissions: employee.permissions
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch permissions' });
+    res.status(500).json({ error: 'Failed to fetch permissions' });
   }
 });
 
@@ -212,7 +212,7 @@ router.put('/employee/:employeeId', authenticate, requireAdmin, async (req: Auth
       permissions: updatedPermissions
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to update permissions' });
+    res.status(500).json({ error: 'Failed to update permissions' });
   }
 });
 
@@ -246,7 +246,7 @@ router.get('/my-permissions', authenticate, async (req: AuthenticatedRequest, re
       rawPermissions: employee.permissions
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch current user permissions' });
+    res.status(500).json({ error: 'Failed to fetch current user permissions' });
   }
 });
 

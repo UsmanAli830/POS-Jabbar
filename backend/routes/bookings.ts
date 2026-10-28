@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
     });
     res.json(bookings);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch booking sheets', details: error });
+    res.status(500).json({ error: 'Failed to fetch booking sheets' });
   }
 });
 
@@ -120,7 +120,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
     res.status(201).json(result);
   } catch (error) {
     console.error('Booking creation error:', error);
-    res.status(500).json({ error: 'Failed to create booking', details: error });
+    res.status(500).json({ error: 'Failed to create booking' });
   }
 });
 
@@ -285,7 +285,7 @@ router.post('/:id/fulfill', async (req, res) => {
     res.status(200).json(result);
   } catch (error) {
     console.error('Fulfillment error:', error);
-    res.status(500).json({ error: 'Failed to fulfill booking', details: error });
+    res.status(500).json({ error: 'Failed to fulfill booking' });
   }
 });
 
@@ -312,7 +312,7 @@ router.post('/:id/cancel', async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to cancel booking', details: error });
+    res.status(500).json({ error: 'Failed to cancel booking' });
   }
 });
 

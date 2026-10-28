@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { getOrSeedLicense, invalidateLicenseCache } from '../middleware/license';
+import { authenticate, requireSuperAdmin } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -23,12 +24,12 @@ router.get('/status', async (req, res) => {
       isActive: !license.isLocked && !isExpired
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to fetch license status' });
+    res.status(500).json({ error: 'Failed to fetch license status' });
   }
 });
 
 // POST /api/license/extend - Super Admin bypass / renewal endpoint
-router.post('/extend', async (req, res) => {
+router.post('/extend', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const { username, password, masterKey, newExpiryDate, days } = req.body;
 
@@ -116,12 +117,12 @@ router.post('/extend', async (req, res) => {
     });
   } catch (error: any) {
     console.error('License Extension Error:', error);
-    res.status(500).json({ error: error.message || 'Failed to extend license' });
+    res.status(500).json({ error: 'Failed to extend license' });
   }
 });
 
 // POST /api/license/set-expiry - Test / management endpoint to set specific date
-router.post('/set-expiry', async (req, res) => {
+router.post('/set-expiry', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const { date, isLocked } = req.body;
     if (!date) {
@@ -161,12 +162,12 @@ router.post('/set-expiry', async (req, res) => {
       license
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // POST /api/license/lock - Manually lock or unlock system
-router.post('/lock', async (req, res) => {
+router.post('/lock', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const { isLocked } = req.body;
     let license = await prisma.softwareLicense.findFirst({
@@ -195,7 +196,7 @@ router.post('/lock', async (req, res) => {
       license
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

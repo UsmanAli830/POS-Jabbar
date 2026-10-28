@@ -2,13 +2,16 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { runDatabaseBackup } from '../scripts/backup';
-import { authenticate, AuthenticatedRequest } from '../middleware/auth';
+import { authenticate, requireSuperAdmin, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 const BACKUPS_DIR = path.resolve(__dirname, '../backups');
 
-// All backup endpoints require authentication
+// Backups contain the WHOLE database (every tenant), so only the software
+// supplier (Super Admin) may list, create or download them. A store admin
+// must never be able to exfiltrate other stores' data this way.
 router.use(authenticate);
+router.use(requireSuperAdmin);
 
 // GET /api/backup/list - List all local backup files
 router.get('/list', async (req: AuthenticatedRequest, res) => {
@@ -40,7 +43,7 @@ router.get('/list', async (req: AuthenticatedRequest, res) => {
     });
   } catch (error: any) {
     console.error('List backups error:', error);
-    res.status(500).json({ error: error.message || 'Failed to list database backups' });
+    res.status(500).json({ error: 'Failed to list database backups' });
   }
 });
 
@@ -59,7 +62,7 @@ router.post('/create', async (req: AuthenticatedRequest, res) => {
     });
   } catch (error: any) {
     console.error('Manual backup error:', error);
-    res.status(500).json({ error: error.message || 'Failed to create database backup' });
+    res.status(500).json({ error: 'Failed to create database backup' });
   }
 });
 
@@ -80,7 +83,7 @@ router.get('/download/:filename', async (req: AuthenticatedRequest, res) => {
     res.download(filePath, filename);
   } catch (error: any) {
     console.error('Download backup error:', error);
-    res.status(500).json({ error: error.message || 'Failed to download backup' });
+    res.status(500).json({ error: 'Failed to download backup' });
   }
 });
 

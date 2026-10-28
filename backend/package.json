@@ -4,11 +4,18 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npx tsc && npx cross-env DATABASE_URL=file:./test.db npx prisma db push --skip-generate && npx cross-env DATABASE_URL=file:./test.db jest --runInBand",
+    "test": "npx tsc --noEmit && npx cross-env DATABASE_URL=file:./test.db npx prisma db push --skip-generate && npx cross-env DATABASE_URL=file:./test.db jest --runInBand",
+    "typecheck": "tsc --noEmit",
     "build": "tsc",
+    "build:prod": "tsc -p tsconfig.build.json && node scripts/postbuild.js",
+    "start:prod": "node dist/index.js",
     "dev": "nodemon index.ts",
     "seed": "ts-node prisma/seed.ts",
-    "seed:demo": "ts-node prisma/seed_demo.ts"
+    "seed:demo": "ts-node prisma/seed_demo.ts",
+    "reset:superadmin": "ts-node scripts/reset-superadmin.ts",
+    "license:keygen": "ts-node scripts/license-keygen.ts",
+    "license:hwid": "ts-node scripts/license-hwid.ts",
+    "license:issue": "ts-node scripts/license-issue.ts"
   },
   "keywords": [],
   "author": "",
@@ -34,6 +41,7 @@
     "@types/supertest": "^7.2.1",
     "cross-env": "^10.1.0",
     "dotenv-cli": "^11.0.0",
+    "javascript-obfuscator": "^4.1.1",
     "jest": "^30.4.2",
     "nodemon": "^3.1.14",
     "prisma": "^5.22.0",
