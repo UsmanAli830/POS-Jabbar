@@ -1,5 +1,6 @@
 import express from 'express';
 import { LicenseStatus, reasonMessage } from './license';
+import { getHardwareId } from './hardware';
 
 /**
  * When licence enforcement is on and the licence is invalid (missing, tampered,
@@ -11,10 +12,13 @@ import { LicenseStatus, reasonMessage } from './license';
 export function createLockedApp(status: LicenseStatus) {
   const app = express();
   const message = reasonMessage(status.reason);
+  // Shown so the supplier can read this machine's id off the lock screen during
+  // setup and issue a licence for it — no source/tooling needed on the client.
+  const hardwareId = getHardwareId();
 
   app.use((req, res) => {
     if (req.path.startsWith('/api')) {
-      return res.status(403).json({ error: 'LICENSE_INVALID', reason: status.reason, message });
+      return res.status(403).json({ error: 'LICENSE_INVALID', reason: status.reason, message, hardwareId });
     }
     res.status(403).type('html').send(`<!doctype html>
 <html lang="en">
@@ -35,7 +39,8 @@ export function createLockedApp(status: LicenseStatus) {
   <div class="lock">🔒</div>
   <h1>Software Not Licensed on This Computer</h1>
   <p>${message}</p>
-  <p>Please contact your software supplier to activate this installation.</p>
+  <p>Please give the Machine ID below to your software supplier to activate this installation.</p>
+  <div class="code"><strong>Machine ID:</strong> ${hardwareId}</div>
   <div class="code">Reference: ${status.reason || 'UNLICENSED'}</div>
 </div></body></html>`);
   });

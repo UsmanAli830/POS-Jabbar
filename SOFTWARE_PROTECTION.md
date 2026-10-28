@@ -27,18 +27,18 @@ npm run license:keygen
   If it leaks, anyone can mint licences for your software.
 
 ### Per client
-1. On the client PC, get its hardware id:
-   ```
-   cd backend
-   npm run license:hwid
-   ```
+1. Get the client PC's Machine ID. Two ways:
+   - **Compiled install (normal case):** run `Start_POS_Production.bat` once on
+     the client. With no licence yet it opens a **lock screen that shows the
+     "Machine ID"** (also printed in the server window). Read/copy that id.
+   - **If you have the source on the machine:** `cd backend && npm run license:hwid`.
 2. On your machine, issue a licence bound to that id:
    ```
    npm run license:issue -- --company "Ali Sanitary Store" --hwid <that-id> --days 365
    ```
    This writes `backend/license.key` (git-ignored).
-3. Copy `license.key` to the client's `backend/` folder (or the path in
-   `LICENSE_FILE`).
+3. Copy `license.key` to the client's `backend/` folder (next to `dist`, i.e.
+   the `LICENSE_FILE` path the launcher sets), then restart the app. It now runs.
 
 ### Enforcement
 - Off by default (so dev/tests are never blocked).

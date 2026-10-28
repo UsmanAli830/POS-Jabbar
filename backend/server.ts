@@ -2,6 +2,7 @@ import app from './app';
 import { startBackupScheduler, runEmergencyBackup } from './scripts/backup';
 import { verifyLicense, isEnforced, reasonMessage } from './license/license';
 import { createLockedApp } from './license/lockedApp';
+import { getHardwareId } from './license/hardware';
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
@@ -16,6 +17,7 @@ if (isEnforced()) {
     console.log(`✓ Licence valid — ${status.payload?.companyName} (expires ${status.payload?.expiresAt})`);
   } else {
     console.error(`[LICENSE] BLOCKED (${status.reason}): ${reasonMessage(status.reason)} — starting in LOCKED mode.`);
+    console.error(`[LICENSE] This machine's ID (give to supplier to issue a licence): ${getHardwareId()}`);
     activeApp = createLockedApp(status);
   }
 }
