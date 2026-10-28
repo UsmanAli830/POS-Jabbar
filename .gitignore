@@ -51,3 +51,8 @@ backend/**/*.js
 # ...but keep hand-written JS tooling that is real source, not a build artifact
 !backend/scripts/postbuild.js
 !backend/jest.config.js
+
+# Issued client licences (per-client, not for version control)
+issued-licenses/
+license.key
+**/license.key
