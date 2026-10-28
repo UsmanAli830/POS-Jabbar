@@ -65,8 +65,14 @@ cd ../backend && npm run build:prod    # TypeScript -> backend/dist, then obfusc
 encoded strings). It also copies `public_key.pem` into `dist/license/`.
 
 ### Run (client)
-Use **`Start_POS_Production.bat`** — it runs `node backend/dist/index.js` with
-the licence enforced. It never runs raw source.
+The client just double-clicks **`Setup.bat`**, which:
+- installs Node.js (via winget) if it is missing,
+- creates a "POS Jabbar" Desktop shortcut,
+- shows the **Machine ID** (and saves `MachineID.txt`) when not yet activated,
+- once `license.key` is in `backend/`, launches the app.
+
+Under the hood it calls **`Start_POS_Production.bat`** (`node backend/dist/index.js`
+with the licence enforced). Neither ever runs raw source.
 
 ---
 
@@ -79,7 +85,7 @@ the licence enforced. It never runs raw source.
 - `backend/.env` (with a unique `JWT_SECRET` per install)
 - `backend/license.key` (that client's hardware-bound licence)
 - `frontend/dist/`
-- `Start_POS_Production.bat`
+- `Setup.bat` and `Start_POS_Production.bat`
 
 **NEVER ship:**
 - Any `.ts` source, `routes/`, `middleware/`, `tests/`, dev `scripts/`
