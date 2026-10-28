@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npx tsc --noEmit && npx cross-env DATABASE_URL=file:./test.db npx prisma db push --skip-generate && npx cross-env DATABASE_URL=file:./test.db jest --runInBand",
+    "test": "npx tsc --noEmit && npx cross-env DATABASE_URL=file:./test.db npx prisma db push --skip-generate && npx cross-env DATABASE_URL=file:./test.db JWT_SECRET=test_jwt_secret jest --runInBand",
     "typecheck": "tsc --noEmit",
     "build": "tsc",
     "build:prod": "tsc -p tsconfig.build.json && node scripts/postbuild.js",
